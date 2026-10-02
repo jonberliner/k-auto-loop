@@ -91,7 +91,7 @@ Then, inside Claude Code:
 /kloop-project optimise the pattern detector   # once per run: scope, metric, budgets, review, baseline, go
 ```
 
-Both skills stop and show you everything they drafted before a single file is written. The manual route is still there: `/project-context`, edit `program.md`, then `/build <feature>`, `/auto-loop <features>`, or `/autoresearch`.
+Each skill asks only the questions that are yours to answer (three for a repo, four for a run), infers what the repo can tell it, and shows every other knob with its value in one review table before a single file is written. The manual route is still there: `/project-context`, edit `program.md`, then `/build <feature>`, `/auto-loop <features>`, or `/autoresearch`.
 
 > [!NOTE]
 > This repo is itself an installed instance. Open it in Claude Code and point `/autoresearch` at `examples/autoresearch-python-speed/` to watch a loop run in minutes.
@@ -103,8 +103,8 @@ Both skills stop and show you everything they drafted before a single file is wr
 ```
 .claude/
   skills/
-    kloop-setup/        onboard a repo: Graft first, graph recon, 2-3 question batches, review gate, write, verify
-    kloop-project/      start a run: graph-drafted scope, metric candidates, budgets, review gate, baseline, go
+    kloop-setup/        onboard a repo: Graft first, recon, three questions, one review table, write, verify
+    kloop-project/      start a run: graph-drafted scope, metric candidates, four questions, one review table, measure, go
     project-context/    memory bank for what the graph cannot map: intent, conventions, process, non-code files
     write-checks/       checks BEFORE code, into checks/pending/<feature>/, plus a plain-English checklist
     build/              driver: checks -> your approval -> lock -> fresh builder -> verify -> report
@@ -187,59 +187,53 @@ claude › What I found
 </details>
 
 <details open>
-<summary><b>2. Interview</b> (structured questions, defaults pre-filled from recon)</summary>
+<summary><b>2. Three questions</b> (one batch; everything else is a default you see in the review)</summary>
 
 ```
-claude › Batch A
-         1. What will loops do here?        ● optimise metrics (Recommended)  ○ build features  ○ both
-         2. Where may agents edit?          ● lab area: recsys/ (Recommended)  ○ anywhere on a branch  ○ one file only
-         3. Protected (multi-select):       ☑ eval/  ☑ data/, manifests  ☑ recsys/features.py  ☑ infra/, migrations/
-                                            ☑ existing test suite  ☐ web/
-         4. Isolation:                      ● worktree per run, headless overnight (Recommended)  ○ branch here  ○ sandbox
+claude › 1. Which parts of the repo may a loop change?
+            ● recsys/ (Recommended)   ○ anywhere, on a loop branch   ○ one file I will name per run
+         2. Which parts must a loop never touch, and is there anything it must never do here?
+            From recon: eval/   data/ + manifests   recsys/features.py (feeds prod)   infra/   migrations/   the existing suite
+            ● protect all of these (Recommended)   ○ all of these plus rules I will type   ○ let me edit the list
+         3. What should an agent know about this repo that the code does not say?
+            ● nothing beyond README and CLAUDE.md   ○ I will type it
 
-you    › 1 both. 2 fine. 3 add web/ too. 4 worktree.
-
-claude › Batch B
-         5. Check runner: `uv run pytest {dir} -q -rf`; full suite `uv run pytest -q` (6 min) at feature end only?   ● yes
-         6. Budgets: 3 min per eval, 8 rounds per feature, builder maxTurns 150, ~100 experiments a night.      ● yes
-         7. Scope policy:                   ● soft (Recommended)  ○ hard
-         8. Graft depth:                    ● structural only (Recommended)  ○ --deep (needs GRAFT_API_KEY)
-
-you    › 6: 4 min per eval. rest fine.
-
-claude › Batch C
-         9. Delivery:  ● commits stay on the loop branch, you open the PR (Recommended)  ○ agent opens a draft PR
-        10. Repo-specific nevers (free text)?
-        11. Non-code context for project-context?
-        12. Holdout path and secondary constraints?
-
-you    › 9 recommended. 10 never call the live feature store; never touch anything under recsys/serving.
-         11 PRD lives in docs/prd/, deploys go through infra/README. 12 holdout is ~/data/recsys-holdout-2026q3.parquet,
-         print latency_ms and params_m, latency is a hard cap at 20ms.
+you    › 1 recsys/. 2 all of these plus: add web/; never call the live feature store; never touch recsys/serving.
+         3 PRD lives in docs/prd/, deploys go through infra/README, the holdout is ~/data/recsys-holdout-2026q3.parquet
+         and the loop must never see it.
 ```
 </details>
 
 <details open>
-<summary><b>3. Review gate</b> (nothing written yet)</summary>
+<summary><b>3. Review gate</b> (one table, nothing written yet)</summary>
 
 ```
-claude › Here is everything I will write. Approve, or tell me what to change.
+claude › Every knob, its value, how it was set, and where it lives. Approve, or tell me what to change.
 
-         .claude/kloop/repo.md ............ full text below (38 lines)
-         .claude/kloop/protected.txt ...... eval/ data/ recsys/features.py recsys/serving/ infra/ migrations/ web/
-         .claude/kloop/config.sh .......... CHECK_CMD="uv run pytest {dir} -q -rf"  SUITE_CMD="uv run pytest -q"
-         program.md ## Fixed rules ........ diff: round cap 8; done = checks + wired + suite green; delivery = branch only;
-                                            nevers: live feature store, recsys/serving; lab = recsys/; scope policy soft
-         .claude/skills/project-context ... filled: stack, run/test, routes, data model, conventions, PRD + deploy pointers,
-                                            "Graft owns code structure; this holds the rest"
-         .claude/agents/feature-builder ... maxTurns 150 (unchanged)
-         .claude/settings.json ............ + Edit(eval/**), Edit(recsys/serving/**), Edit(web/**) deny rules
+         knob                        value                                                  set by    lives in
+         lab boundary                recsys/                                                decided   program.md Fixed rules, repo.md
+         protected paths             eval/ data/ recsys/features.py recsys/serving/ infra/   decided   protected.txt, settings deny rules
+                                     migrations/ web/
+         repo nevers                 no live feature store; no recsys/serving               decided   program.md Fixed rules
+         non-code context            PRD docs/prd/, deploys infra/README, holdout path      decided   project-context
+         check runner / full suite   uv run pytest {dir} -q -rf / uv run pytest -q (6 min)   inferred  config.sh
+         suite cadence               at feature end (suite > 2 min)                         default   program.md
+         round cap per feature       8                                                      default   program.md
+         builder turn limit / model  150 / inherit                                          default   feature-builder.md
+         isolation                   worktree per run                                       default   repo.md
+         delivery                    commits stay on the loop branch; you open the PR       default   program.md
+         scope policy                soft                                                   default   repo.md
+         Graft                       0.21.1, 4,812 nodes, structural (no --deep)            inferred  repo.md
+         compute                     1x A10, 32 CPU                                         inferred  repo.md
 
-         ● approve and write    ○ edit
+         Also: repo.md full text and the program.md Fixed-rules diff below.
+         ● approve and write (Recommended)   ○ edit
 
-you    › edit: in Fixed rules, also forbid new dependencies without listing them in the report.
+you    › edit: forbid new dependencies unless they are listed in the report.
 
-claude › Added. ● approve and write    ○ edit
+claude › Changed one row:
+         repo nevers                 + no new dependencies unless listed in the report      decided   program.md Fixed rules
+         ● approve and write (Recommended)   ○ edit
 
 you    › approve
 ```
@@ -280,59 +274,73 @@ claude › From the graph: the request is about recsys/pattern_detector.py (buil
                         neighbourhood recsys/ranker.py, configs/detector.yaml, tests/test_pattern_detector.py,
                                       recsys/features.py (read-only, protected), eval/ (read-only, protected)
                         out by default everything else (loop may step out and log why)
-         Metric candidates:
-           A. precision@10 on labelled repeat-purchase windows   ground truth: data/labels/repeat_2026q2.parquet
-              noise: low-moderate; gaming: easy to overfit the slice -> holdout needed; cost ~3.5 min/run
-           B. NDCG@10 from eval/offline_metrics.py              reuses existing code; rewards ranking, not detection;
-              noise: low; gaming: harder; cost ~3.5 min/run
-           C. AUC pattern vs non-pattern                         robust to class balance; less tied to product impact
+         Metric candidates: A precision@10 on labelled windows · B NDCG@10 via eval/offline_metrics.py · C AUC pattern vs non-pattern
+         (trade-offs in question 1)
          Cost per round ~4 min -> ~15 rounds/hour. Risk: pattern_detector imports web/scripts/ (protected) at module load.
 ```
 </details>
 
 <details open>
-<summary><b>2. Interview</b></summary>
+<summary><b>2. Four questions</b> (one batch; the metric and the scope are yours, never defaulted)</summary>
 
 ```
-claude › Batch A
-         1. Mode:     ● autoresearch (Recommended)  ○ build  ○ auto-loop
-         2. Scope:    ● use drafted scope (Recommended)  ○ widen to <dir>  ○ core only
-         3. Metric:   ○ A precision@10   ○ B NDCG@10   ○ C AUC   ○ write my own        (your call; no default)
-         4. Budget:   8 hours or 120 experiments; stop after 40 consecutive discards; ablation every 20 keeps; 4 min/run
+claude › 1. What should get better, and how will we know?
+            ○ A  precision@10 on labelled repeat-purchase windows, higher is better
+                 ground truth data/labels/repeat_2026q2.parquet · noise low-moderate · overfits the slice easily, so holdout · ~3.5 min/run
+            ○ B  NDCG@10 from eval/offline_metrics.py, higher is better
+                 reuses existing code · rewards ranking, not detection · noise low · harder to game · ~3.5 min/run
+            ○ C  AUC pattern vs non-pattern, higher is better
+                 robust to class balance · less tied to product impact
+         2. Where should it work?
+            core recsys/pattern_detector.py · neighbourhood recsys/ranker.py, configs/detector.yaml,
+            tests/test_pattern_detector.py, recsys/features.py (protected, read-only), eval/ (protected)
+            ● use it (Recommended)   ○ widen   ○ core only
+         3. How much?
+            ● overnight: 8 h or 120 rounds, stop after 40 straight discards (Recommended)
+            ○ a few hours: 3 h or 40 rounds, stop after 20   ○ until I stop it (Karpathy-style)
+         4. Anything to try first, anything to avoid, anything it must never do in this run?
+            ● nothing, use the defaults (Recommended)   ○ I will type it
 
-you    › A, higher is better. Scope fine. Budget fine but stop at 30 discards.
-
-claude › Batch B
-         5. Eval design: pin train/val by manifest sha256; asserts shape + finite; print latency_ms (cap 20) and params_m
-         6. Isolation: worktree ../recsys-kloop, branch autoresearch/oct02
-         7. Forbidden: seeds, eval caching, reading labels, new deps, touching recsys/features.py or web/scripts
-         8. Idea seeds? Known dead ends?
-         9. Interim report every 25 rounds; final report, no PR; holdout ~/data/recsys-holdout-2026q3.parquet
-
-you    › seeds: session-recency decay, windowed co-occurrence counts, min-support pruning, hashing trick for sparse ids,
-         prune the current rule list. dead end: we tried a transformer here in May, too slow for the latency cap.
+you    › 1 A. 2 use it. 3 overnight, but stop after 30. 4: try session-recency decay, windowed co-occurrence counts,
+         min-support pruning, hashing trick for sparse ids, pruning the current rule list. dead end: a transformer here
+         in May, too slow for the latency cap. never touch web/scripts even though the detector imports from it.
 ```
 </details>
 
 <details open>
-<summary><b>3. Review gate, then baseline</b></summary>
+<summary><b>3. Review gate, then measure</b></summary>
 
 ```
-claude › Run spec .claude/kloop/runs/oct02.md (full text below, 61 lines) and eval/pattern_eval.py metric_fn:
+claude › knob                 value                                                      set by      lives in
+         goal                 catch more repeat-purchase patterns                        decided     runs/oct02.md
+         mode / target        autoresearch / recsys/pattern_detector.py                  inferred    runs/oct02.md, program.md
+         scope                core 1 file, neighbourhood 5, soft                         decided     runs/oct02.md
+         metric, direction    precision@10, higher                                       decided     program.md, eval/pattern_eval.py
+         eval                 new: train/val pinned by sha256, fit <= 240 s, asserts     drafted     eval/pattern_eval.py
+                              shape + finite, prints latency_ms (cap 20) and params_m
+         eval time per run    measured after approval                                    measured    runs/oct02.md
+         noise floor          baseline x3 after approval                                 measured    runs/oct02.md, autoresearch.tsv
+         budget, stop         8 h / 120 rounds / 30 straight discards                    decided     runs/oct02.md
+         ablation cadence     every 20 keeps                                             default     program.md
+         forbidden            seeds, eval caching, reading labels, new deps + web/scripts default+dec program.md
+         seeds, dead ends     5 seeds; dead end: transformer (latency)                   decided     runs/oct02.md
+         isolation, tag       worktree ../recsys-kloop, branch autoresearch/oct02        default     runs/oct02.md
+         reports              interim every 25 rounds; final report; you open the PR     default     runs/oct02.md
+         holdout              ~/data/recsys-holdout-2026q3.parquet (from repo.md)        inferred    runs/oct02.md
+
+         Run spec (61 lines) below. Eval metric_fn:
 
            def metric_fn(model, df):           # precision@10 on labelled repeat-purchase windows
                scores = model.predict(df.drop(columns=["label"]))
                top = scores.argsort()[::-1][:10]
                return float(df["label"].values[top].mean())
 
-         Asserts: manifest sha256 for train/val; fit under 240 s (kill at 300); predict shape; finite scores.
-         Prints: metric, latency_ms, fit_seconds, params_m. latency_ms > 20 -> constraint line -> discard.
-         ● approve   ○ edit
+         ● approve (Recommended)   ○ edit
 
 you    › approve
 
 claude › Written and committed on autoresearch/oct02: kloop(oct02): run spec + frozen eval.
-         Eval runs in 3 m 48 s. Baseline x3: 0.4120, 0.4098, 0.4131 -> noise floor 0.0033.
+         Measured: eval runs in 3 m 48 s. Baseline x3: 0.4120, 0.4098, 0.4131 -> noise floor 0.0033.
          An improvement smaller than 0.0033 will be logged as a discard.
          Kick-off:
            interactive  cd ../recsys-kloop && claude  ->  "read program.md and .claude/kloop/runs/oct02.md and start the autoresearch run"
