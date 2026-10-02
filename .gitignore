@@ -1,0 +1,13 @@
+# local-only material (e.g. the raw video transcript)
+*.local.*
+# loop run artifacts (kept untracked so git reset never loses them)
+results.tsv
+autoresearch.tsv
+run.log
+checks.log
+# python / node noise
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+.DS_Store

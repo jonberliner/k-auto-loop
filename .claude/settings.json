@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(checks/locked/**)",
+      "Edit(./checks/locked/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/kloop/guard-locked.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

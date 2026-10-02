@@ -1,0 +1,5 @@
+# Extra protected path prefixes, one per line (relative to repo root).
+# checks/locked is always protected. Add your frozen eval script here when
+# using autoresearch mode, e.g.:
+# eval.sh
+# prepare.py
