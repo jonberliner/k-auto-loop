@@ -13,7 +13,7 @@ after `program.md`.
 
 ## Scope (from the Graft graph; soft unless repo.md says hard)
 - core (edit): 
-- neighbourhood (read, may touch; from `graft callers <symbol> -d 2`): 
+- neighbourhood (read, may touch; what the graph shows depends on or feeds the core): 
 - out of scope by default: everything else
 - policy: soft | hard
 - excursions so far (filled by the loop and reviewed by auto-loop): 

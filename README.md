@@ -42,7 +42,7 @@ This package turns that pattern into something you can install on a repo you act
 |---|---|---|
 | **`autoresearch`** | One editable target, one frozen eval that prints `metric: <n>`, a dedicated branch, an endless commit / eval / keep-or-reset loop with a TSV lab notebook | Karpathy's `program.md`, generalised |
 | **`build` + `auto-loop`** | Features scored by checks written *before* the code and locked so the agent cannot soften them. A fresh builder per feature. An outer loop that reads the results log and rewrites how the inner loop works | AI LABS, [He Finally 10x Claude Code With This Method](https://www.youtube.com/watch?v=qLfSDQ5NGh0) |
-| **Graft + the interview skills** | A local code graph so each round asks "what uses this" instead of grepping, and two conversational skills that onboard a repo and start a run while showing you everything before it lands | Trail HQ's [Graft](https://github.com/trailhq/Graft), AI LABS' [Graft video](https://www.youtube.com/watch?v=cyIWQHYoUg8) |
+| **Graft + the interview skills** | A local code graph, wired in by `graft init` and used as Graft intends, so each round asks "what uses this" instead of grepping, and two conversational skills that onboard a repo and start a run while showing you everything before it lands | Trail HQ's [Graft](https://github.com/trailhq/Graft), AI LABS' [Graft video](https://www.youtube.com/watch?v=cyIWQHYoUg8) |
 
 Everything is plain Markdown, shell, and one small Python hook under `.claude/`. No daemon, no service, no API key beyond your Claude Code subscription.
 
@@ -111,7 +111,7 @@ Both skills stop and show you everything they drafted before a single file is wr
     auto-loop/          one feature at a time; rewrites "## How to work" in program.md from evidence
     autoresearch/       Karpathy's metric loop for any target + eval, with noise floor and ablation passes
   agents/
-    feature-builder.md  fresh-context builder that runs the rounds; navigates with Graft; logs excursions
+    feature-builder.md  fresh-context builder that runs the rounds; uses Graft as wired; logs excursions
   kloop/
     approve-checks.sh   checks/pending/<f> -> checks/locked/<f>, then commit (the human gate)
     run-checks.sh       run locked checks; prints checks_total / checks_passed / failing / status
@@ -175,7 +175,7 @@ claude › Installed 0.21.1. Dry run of `graft init --agents claude` would write
 claude › What I found
          1. Python 3.11 monorepo, uv; a Next.js admin under web/.
          2. Tests: `uv run pytest -q` (CI runs it in ~6 min); web uses vitest.
-         3. graft map: hubs are recsys/scoring.py, recsys/features.py, api/routes.py.
+         3. Graph hubs: recsys/scoring.py, recsys/features.py, api/routes.py.
          4. Likely lab: recsys/ (pattern_detector.py, ranker.py are hotspots, 41 commits in 6 months).
          5. Likely protected: eval/, data/manifests/, recsys/features.py (feeds prod), infra/, migrations/.
          6. Existing metric code: eval/offline_metrics.py computes NDCG@10 and precision@k.
@@ -271,9 +271,9 @@ you    › /kloop-project make the pattern detector better at catching repeat-pu
 <summary><b>1. Graph recon and a drafted scope</b></summary>
 
 ```
-claude › graft ask "repeat-purchase pattern detection" -> recsys/pattern_detector.py (build_detector, score_window)
-         graft callers build_detector -d 2 -> recsys/ranker.py, api/routes.py (via ranker), tests/test_pattern_detector.py
-         graft callers build_detector --direction out -> recsys/features.py (protected), configs/detector.yaml
+claude › From the graph: the request is about recsys/pattern_detector.py (build_detector, score_window).
+         Depended on by recsys/ranker.py and, through it, api/routes.py; tested by tests/test_pattern_detector.py.
+         Depends on recsys/features.py (protected) and configs/detector.yaml.
 
          Mode: autoresearch.
          Scope (soft):  core          recsys/pattern_detector.py
@@ -358,7 +358,7 @@ sequenceDiagram
     participant E as eval/pattern_eval.py (frozen)
     participant T as autoresearch.tsv (untracked)
     H->>A: go
-    A->>G: skeleton + callers of the target (once)
+    A->>G: orient on the target: what it feeds, what it depends on (once)
     loop every ~4 minutes, until a stop rule
         A->>A: one idea -> edit recsys/pattern_detector.py -> git commit
         A->>E: run, output to run.log
@@ -378,7 +378,7 @@ sequenceDiagram
 
 ### Hour by hour
 
-1. **Minute 0.** The agent reads `program.md`, the run spec, and the graph's view of the target (its signatures, its callers, what it calls). It does not read the repo. It notes the start commit.
+1. **Minute 0.** The agent reads `program.md`, the run spec, and asks Graft about the target: what it feeds, what it depends on. It does not read the repo. It notes the start commit.
 2. **Each round, about four minutes.** One idea becomes one edit to `recsys/pattern_detector.py` and one commit, `research: session-recency decay, half-life 7d`. The eval runs with output redirected to `run.log`; the agent greps five lines out of it. It appends a row to `autoresearch.tsv`. A gain bigger than the noise floor with latency under the cap is a keep. Anything else, including a crash the agent cannot fix in a minute, is a `git reset --hard` back to where the round started.
 3. **Hour 1 to 2.** Idea seeds get tried first. Expect two or three keeps and a dozen discards. Discards are described honestly, "min-support 5: fewer patterns, precision down 0.012", because the next idea depends on knowing why.
 4. **When it runs dry.** The rules forbid degrading into seed flips and micro-nudges. The agent re-reads the target top to bottom, combines near misses, or tries a structural change. If 30 discards pass in a row, it stops.
@@ -436,7 +436,7 @@ flowchart TD
 
 - **Checks first.** `write-checks` writes them, runs them to prove they fail, and lists them in plain English. At least one is a *wiring* check: the feature is reachable from the app. Passing checks on code nothing calls is not done.
 - **Lock on your approval.** The one human gate per feature. After `approve-checks.sh`, three layers stop the agent from softening them: a permission deny rule on the file tools, the guard hook on shell commands, and the commit.
-- **Fresh builder per feature.** Empty context, reads `program.md` and the checks, navigates with Graft, runs rounds. Keep means more checks pass with no regressions. `graft blast` before each keep; if the blast radius leaves the neighbourhood, the full suite runs first.
+- **Fresh builder per feature.** Empty context, reads `program.md` and the checks, uses Graft as wired, runs rounds. Keep means more checks pass with no regressions. When Graft shows a change reaches outside the neighbourhood, the full suite runs before the keep.
 - **The outer loop.** A fresh builder has no memory, so the same mistake recurs across features. After each feature, `auto-loop` reads the rows and the report, finds what repeats, and writes habits into `## How to work` with evidence like `(evidence: shared-db r1, mentions r1)`. It may widen or narrow the run's scope from logged excursions. It may not touch the checks or `## Fixed rules`, so it cannot make rounds stop failing by lowering the bar.
 
 The video's two learned habits, which ship as defaults in `templates/program.md`: *connect the feature to the app in the same round that makes its checks pass*, and *find every place the app already does this job and make each one follow the new rule*.
@@ -496,7 +496,7 @@ This package is a re-expression of other people's ideas, with attribution. Nothi
 
 - **Andrej Karpathy**, [autoresearch](https://github.com/karpathy/autoresearch) (MIT). The loop, the frozen scorer, the fixed time budget, the untracked TSV, the simplicity criterion, "never stop", and the idea that the human programs `program.md` rather than the code. The notes in [`notes/karpathy-autoresearch.md`](notes/karpathy-autoresearch.md) paraphrase his README and `program.md`.
 - **AI LABS** (YouTube), [He Finally 10x Claude Code With This Method](https://www.youtube.com/watch?v=qLfSDQ5NGh0) and [Github Top Trending Tool Just Fixed The AI Agent's Biggest Problem](https://www.youtube.com/watch?v=cyIWQHYoUg8). The checks-first build loop, the locked folder with a settings rule, the fresh builder per feature, the auto-loop that rewrites "how to work" from the results log, the four tests for when a loop is worth it, and the "Graft maps code, not your notes" caveat. Paraphrased in [`notes/video-summary.md`](notes/video-summary.md) and [`notes/graft.md`](notes/graft.md).
-- **Trail HQ / Nanonets**, [Graft](https://github.com/trailhq/Graft) (MIT). The tree-sitter code graph, `graft ask` / `callers` / `blast`, and the Claude Code wiring the loops navigate and scope with.
+- **Trail HQ / Nanonets**, [Graft](https://github.com/trailhq/Graft) (MIT). The tree-sitter code graph and the Claude Code wiring (skill, hooks, MCP tools) the loops navigate and scope with; the loops use it the way Graft intends rather than through command recipes.
 - **Tobi Lütke**, for demonstrating on Shopify's Liquid that the pattern is not ML-specific.
 - Community generalisations that shaped the non-ML defaults: **Udit Goenka**'s [autoresearch skill](https://github.com/uditgoenka/autoresearch) (bounded iterations, a guard that reworks a change when it breaks tests), **Rkcr7**'s [autoresearch-guide](https://github.com/Rkcr7/autoresearch-guide) (frozen eval, noise handling, "a better program.md is the main lever"), **yibie**'s [awesome-autoresearch](https://github.com/yibie/awesome-autoresearch), and the platform forks by **miolini**, **trevin-creator**, **jsegov**, and **andyluo7**.
 - Writeups whose lessons became rules here: **paddo** ([700 Experiments While You Sleep](https://paddo.dev/blog/autoresearch-overnight-lab/)) on seed-flip gaming, late-session degradation, and non-independent keeps, which became the forbidden list and the ablation pass; **Arun Baby**, **Aakash Gupta**, the **HackerNoon** overnight write-up, **DataCamp**, **The New Stack**, and **VentureBeat** for context and numbers. All links in [`notes/sources.md`](notes/sources.md).

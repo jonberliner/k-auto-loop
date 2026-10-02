@@ -25,10 +25,9 @@ in `build` / `auto-loop`; this is for making a number go the right way.
      so the guard hook blocks edits to it.
    - **Direction**: lower or higher is better.
    - **Budget**: approximate minutes per eval run; kill at 2x.
-2. Orient once with the graph, not by reading: `graft skeleton <target>`,
-   `graft callers <main symbol> -d 1` both directions, so you know what the
-   target feeds and what it depends on. The target is still the only file
-   you edit.
+2. Orient once with Graft rather than by reading files: what the target
+   feeds and what it depends on. The target is still the only file you
+   edit.
 3. Agree a run tag (today's date works: `oct02`). Branch
    `autoresearch/<tag>` must not already exist. `git checkout -b` it.
 4. Create `autoresearch.tsv` with the header

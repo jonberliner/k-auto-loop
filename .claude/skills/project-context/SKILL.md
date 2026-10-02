@@ -14,10 +14,9 @@ grow it as the app grows.
 conventions, new gotchas). The `build` skill does this as its last step.
 
 ## Where the code map lives
-Graft (`graft/`, built by `graft build`) owns code structure: symbols,
-callers, blast radius. Ask it first (`graft_find_code`, `graft_trace_calls`,
-`graft_file_api`, or `graft ask` / `graft callers` / `graft skeleton`). This
-skill holds what the graph cannot map: intent, conventions, process, and the
+Graft is wired into this repo and owns code structure: symbols, who uses
+what, what a change affects. Use it the way its skill directs, before grep.
+This skill holds what the graph cannot map: intent, conventions, process, and the
 non-code files (PRDs, plans, runbooks) listed below.
 
 ## What the app does

@@ -23,9 +23,10 @@ current repo.
 
 ## 0. Graft first
 
-Graft (https://github.com/trailhq/Graft) builds a local code graph the
-loops navigate with instead of grepping. It goes first so recon and every
-later builder work from the map.
+Graft (https://github.com/trailhq/Graft) builds a local code graph and
+wires itself into Claude Code with its own skill, hooks, and MCP tools. It
+goes first so recon and every later builder have the map. Use Graft the
+way Graft intends; do not invent command recipes for it.
 
 1. `graft --version`. If missing: say so and ask one question: install
    globally (`npm install -g @nanonets/graft`), use `npx -y @nanonets/graft`
@@ -35,32 +36,29 @@ later builder work from the map.
 2. `graft init --dry-run --agents claude` and show the file list (it writes
    `.claude/skills/graft/SKILL.md`, `.mcp.json`, hook and statusline
    entries merged into `.claude/settings.json`, and `graft/` which it
-   git-ignores). Then `graft init --agents claude --no-global`. Add
-   `--no-statusline` if the repo already has a statusline it wants to keep.
+   git-ignores). Then `graft init --agents claude`. Add `--no-statusline`
+   if the repo already has a statusline it wants to keep.
 3. `graft build` if init did not already (structural, no API key). Offer
    `graft build --deep` only in the interview; it needs `GRAFT_API_KEY`.
-4. `graft check` must exit 0. `graft map` once; keep its output for recon.
+4. `graft check` must exit 0.
 5. Confirm the k-auto-loop guard survived Graft's settings merge: the
    PreToolUse entry for `guard-locked.py` and the `Edit(checks/locked/**)`
    deny rule are still in `.claude/settings.json`. If not, re-run
    `install.sh` on this path (it re-asserts them).
 
-## 1. Recon (graph-powered, no questions yet)
+## 1. Recon (no questions yet)
 
-Code structure comes from Graft; everything else from files.
-- `graft map` for orientation: clusters, hubs, hotspots.
-- `graft ask "<likely purpose of loops here>" --json -n 12` to find
-  candidate lab areas; `graft ask "tests and evaluation"`,
-  `graft ask "data loading and fixtures"`, `graft ask "configuration and
-  secrets"` to find candidate protected areas.
-- `graft skeleton <hub file>` instead of reading hub files whole.
+Code structure comes from Graft, used as its skill directs: orient on the
+repo, find the areas that match what loops will do here, find where tests,
+evaluation, data loading, and configuration live. Prefer the graph to
+reading hub files whole.
 - Non-code (Graft does not map these): `README*`, `CLAUDE.md`, `AGENTS.md`,
   docs index, manifests (`pyproject.toml`, `package.json`, `go.mod`,
   `Cargo.toml`, `Makefile`), test config and the exact CI test command,
   data and model directories, migrations, infra, generated code, and any
   existing `.claude/` config that could conflict.
 - `git log --since=6.months --name-only --pretty=format: | sort | uniq -c | sort -rn | head -30`
-  for hot files; cross-check against Graft's hotspots.
+  for hot files; cross-check against what the graph shows as central.
 - Compute if ML-shaped: `nvidia-smi`, `torch.cuda.is_available()`, CPU
   count, container or sandbox.
 
@@ -129,10 +127,9 @@ Stop asking as soon as the profile has no blanks. Three batches is the cap.
   rule, repo-specific nevers, lab boundary, scope policy. Never touch
   `## How to work`.
 - `.claude/skills/project-context/SKILL.md`: filled from recon plus
-  answers. Say explicitly that Graft owns code structure (use
-  `graft_find_code`, `graft_trace_calls`, `graft_file_api` or the CLI
-  before grep), and keep this skill for what the graph cannot map:
-  intent, conventions, process, non-code files.
+  answers. Say explicitly that Graft is wired in and owns code structure,
+  and keep this skill for what the graph cannot map: intent, conventions,
+  process, non-code files.
 - `.claude/agents/feature-builder.md`: `maxTurns`, `model` if chosen.
 - `.claude/settings.json`: extra deny rules for named protected areas,
   e.g. `Edit(eval/**)`.

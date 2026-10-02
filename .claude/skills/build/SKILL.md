@@ -62,9 +62,9 @@ Request: **$ARGUMENTS**
   summary. Every locked check in the repo must pass, not just this
   feature's. Then run the project's own test suite.
 - Write `reports/<YYYY-MM-DD>-<feature>.md`: rounds table (from
-  `results.tsv`), `graft blast --base <feature start> --format markdown`
-  output (what the feature's kept commits touch), excursions outside scope
-  and why, kept vs discarded, where the builder went wrong and how it
+  `results.tsv`), what the feature's kept commits touch and what depends
+  on it (from the graph), excursions outside scope and why, kept vs
+  discarded, where the builder went wrong and how it
   recovered, what the checks missed, diffs of interest, dependencies added,
   open questions for the human. Copy the feature's rows of `results.tsv`
   into `reports/<YYYY-MM-DD>-<feature>.results.tsv`.

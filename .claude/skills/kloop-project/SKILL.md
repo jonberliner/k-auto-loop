@@ -20,17 +20,14 @@ Two decisions are always the user's and are never defaulted silently:
 
 - Read `.claude/kloop/repo.md`, `program.md`, `features.md` if present,
   and the last spec in `.claude/kloop/runs/` for house style.
-- Find the relevant part of the repo:
-  - `graft ask "<the request>" --json -n 12` for ranked candidates.
-  - For the top candidates: `graft skeleton <file>` for the API surface;
-    `graft callers <symbol> -d 2` (in) and `--direction out` (out) for the
-    neighbourhood and blast radius.
-  - `graft grep` for strings the request names (metric names, config
-    keys, feature flags).
+- Find the relevant part of the repo with Graft, used as its skill
+  directs: what code the request is about, what depends on it, what it
+  depends on. That is the natural neighbourhood of the task.
 - Draft a **scope**, not a fence:
   - **core**: the file(s) the loop will edit, usually one;
-  - **neighbourhood**: files within two hops that the loop will likely
-    read or may need to touch (tests, callers, config);
+  - **neighbourhood**: what the graph shows depends on or feeds the core
+    and the loop will likely read or may need to touch (tests, callers,
+    config);
   - **out of scope by default**: everything else. Under the `soft` policy
     the loop may go there when it must and logs the excursion; under
     `hard` it stops and reports.
@@ -94,8 +91,7 @@ Two decisions are always the user's and are never defaulted silently:
 Print the complete run spec and, for autoresearch, the eval's
 `metric_fn` and the asserts, in chat. Ask one question: `approve` /
 `edit` (free text). Loop until approved. The user can also say "show me
-the neighbourhood" and you print the `graft callers` output that produced
-it.
+the neighbourhood" and you print what the graph showed that produced it.
 
 ## 5. Write and verify
 

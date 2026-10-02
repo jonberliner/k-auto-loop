@@ -33,9 +33,9 @@ in `.claude/kloop/runs/` if present. Then for each feature, in order:
    - anything the human corrected during check review that a rule could
      have pre-empted;
    - excursions outside the run spec's scope: the same path or area needed
-     by two features means the scope was drawn too tight; a blast radius
-     (from the report) that repeatedly reaches code no check covers means a
-     check is missing.
+     by two features means the scope was drawn too tight; kept commits whose
+     dependents (from the report) repeatedly include code no check covers
+     means a check is missing.
 3. **Write habits.** For each recurring problem, write one habit: a short
    imperative sentence a builder can follow before it starts, plus the
    evidence in the form `(evidence: <feature> r<N>, <feature> r<M>)`. One

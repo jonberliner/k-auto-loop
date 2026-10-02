@@ -26,16 +26,18 @@ size, which is exactly where loops hurt most.
 
 For the loops specifically it gives three things:
 
-1. **Cheaper rounds.** The builder asks the graph instead of grepping.
-2. **Scoping without prescribing.** `graft ask` plus `graft callers -d 2`
-   around a target yields the natural neighbourhood of a task. The run
-   spec records it as a soft scope: core files to edit, neighbourhood
+1. **Cheaper rounds.** The builder asks the graph instead of grepping,
+   through the skill, hooks, and MCP tools `graft init` wires in. The
+   loop skills do not prescribe Graft commands; Graft's own skill does.
+2. **Scoping without prescribing.** Asking the graph what a task is about,
+   what depends on it, and what it depends on yields the task's natural
+   neighbourhood. The run spec records it as a soft scope: core files to edit, neighbourhood
    likely to be read or touched, everything else out of scope by default.
    The loop may step outside when it must, and logs the excursion, so the
    outer loop can widen the scope with evidence instead of the human
    guessing it up front.
-3. **Blast radius as a regression check.** `graft blast --base <start>`
-   shows what depends on the files a round changed. If that leaves the
+3. **Dependents as a regression check.** Graft's post-edit hook shows
+   what depends on the files a round changed. If that leaves the
    neighbourhood, the builder runs the full suite before keeping, and the
    report lists it. It directly implements the video's learned habit
    "find every place the app already does this job".
