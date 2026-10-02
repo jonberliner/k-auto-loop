@@ -1,231 +1,504 @@
+<div align="center">
+
 # k-auto-loop
 
-A Claude Code package for running Karpathy-style autonomous loops on your
-own projects, plus the one change that makes the loop improve itself.
+**Karpathy-style autonomous loops for Claude Code, on your own repos.**
+Checks before code. A scorer the agent cannot touch. One commit per round. Keep on improvement, reset on anything else.
+Plus the one change that makes the loop improve itself, and a code graph so it never has to read the whole repo.
 
-Two loops, one set of mechanics:
+[![License: MIT](https://img.shields.io/badge/license-MIT-20C997?style=flat-square)](LICENSE)
+[![Claude Code](https://img.shields.io/badge/runs%20in-Claude%20Code-D97757?style=flat-square)](https://code.claude.com)
+[![Graft](https://img.shields.io/badge/navigates%20with-Graft-E5484D?style=flat-square)](https://github.com/trailhq/Graft)
+[![Based on](https://img.shields.io/badge/based%20on-karpathy%2Fautoresearch-111?style=flat-square)](https://github.com/karpathy/autoresearch)
 
-| Loop | What it optimises | Where the idea comes from |
+</div>
+
+---
+
+## Contents
+
+- [What it is](#what-it-is)
+- [How a loop works](#how-a-loop-works)
+- [Quick start](#quick-start)
+- [What is in the box](#what-is-in-the-box)
+- [Example: onboarding a repo with `/kloop-setup`](#example-onboarding-a-repo-with-kloop-setup)
+- [Example: starting a run with `/kloop-project`](#example-starting-a-run-with-kloop-project)
+- [Walkthrough: what happens overnight, and what it touches](#walkthrough-what-happens-overnight-and-what-it-touches)
+- [The build loop and the auto-loop](#the-build-loop-and-the-auto-loop)
+- [Safety model](#safety-model)
+- [When not to use a loop](#when-not-to-use-a-loop)
+- [Knobs](#knobs)
+- [Credits](#credits)
+
+---
+
+## What it is
+
+Andrej Karpathy's [autoresearch](https://github.com/karpathy/autoresearch) gives an AI agent one editable file, one frozen scorer, and a plain-English `program.md`, then lets it run experiments all night: change, train five minutes, score, keep or `git reset`, repeat. He ran it for two days, 700 experiments, about 20 kept. Tobi Lütke pointed the same pattern at Shopify's templating engine and got 53% faster rendering from 93 automated commits. The pattern is not about ML. It is about anything with a number you can measure.
+
+This package turns that pattern into something you can install on a repo you actually ship from, in three parts:
+
+| Part | What it does | Where the idea comes from |
 |---|---|---|
-| **autoresearch** | one number from a frozen eval (speed, loss, size, score) | Karpathy's [autoresearch](https://github.com/karpathy/autoresearch) |
-| **build** + **auto-loop** | features, scored by locked checks written *before* the code; the outer loop rewrites the inner loop's instructions from the results log | AI LABS, ["He Finally 10x Claude Code With This Method"](https://www.youtube.com/watch?v=qLfSDQ5NGh0) |
+| **`autoresearch`** | One editable target, one frozen eval that prints `metric: <n>`, a dedicated branch, an endless commit / eval / keep-or-reset loop with a TSV lab notebook | Karpathy's `program.md`, generalised |
+| **`build` + `auto-loop`** | Features scored by checks written *before* the code and locked so the agent cannot soften them. A fresh builder per feature. An outer loop that reads the results log and rewrites how the inner loop works | AI LABS, [He Finally 10x Claude Code With This Method](https://www.youtube.com/watch?v=qLfSDQ5NGh0) |
+| **Graft + the interview skills** | A local code graph so each round asks "what uses this" instead of grepping, and two conversational skills that onboard a repo and start a run while showing you everything before it lands | Trail HQ's [Graft](https://github.com/trailhq/Graft), AI LABS' [Graft video](https://www.youtube.com/watch?v=cyIWQHYoUg8) |
 
-Both navigate the repo with [Graft](https://github.com/trailhq/Graft), a
-local tree-sitter code graph, so a fresh builder asks "what uses this"
-instead of grepping its way through a large repo every round. Graft runs
-first during setup, and the graph is how each run finds the part of the
-repo it should stay in. Notes in [`notes/graft.md`](notes/graft.md).
+Everything is plain Markdown, shell, and one small Python hook under `.claude/`. No daemon, no service, no API key beyond your Claude Code subscription.
 
-Both share the mechanics that make the original work: one commit per round,
-a scorer the agent cannot touch, keep on improvement, `git reset` on
-anything else, an untracked TSV as the lab notebook, and a `program.md`
-that is the human's steering wheel. Notes on both sources are in
-[`notes/`](notes/).
+---
+
+## How a loop works
+
+Every mode shares the same round mechanics. The agent never grades its own work: the score comes from something it cannot edit.
+
+```mermaid
+flowchart LR
+    A[Read program.md<br/>+ run spec] --> B[Pick ONE change]
+    B --> C[Edit the target]
+    C --> D[git commit]
+    D --> E[Run the frozen eval<br/>or the locked checks]
+    E --> F{Better?}
+    F -- yes, beyond noise --> G[KEEP<br/>branch advances]
+    F -- no / crash --> H[git reset --hard<br/>back to round start]
+    G --> I[Append row to TSV]
+    H --> I
+    I --> B
+    style E fill:#fde68a,stroke:#b45309,color:#111
+    style G fill:#bbf7d0,stroke:#15803d,color:#111
+    style H fill:#fecaca,stroke:#b91c1c,color:#111
+```
+
+The TSV is deliberately **untracked by git**, so a reset never erases the record of what was tried. Discards and crashes are logged with the same care as keeps; they are what the outer loop learns from.
+
+Three things only a human does: pick the metric, approve the checks, and decide what ships.
+
+---
+
+## Quick start
+
+```bash
+git clone https://github.com/jonberliner/k-auto-loop
+cd k-auto-loop
+./install.sh ~/repos/your-project --graft     # copies skills, agent, scripts, templates; runs graft init + build
+cd ~/repos/your-project && claude
+```
+
+Then, inside Claude Code:
+
+```
+/kloop-setup                                   # once per repo: Graft first, recon, short interview, review, write
+/kloop-project optimise the pattern detector   # once per run: scope, metric, budgets, review, baseline, go
+```
+
+Both skills stop and show you everything they drafted before a single file is written. The manual route is still there: `/project-context`, edit `program.md`, then `/build <feature>`, `/auto-loop <features>`, or `/autoresearch`.
+
+> [!NOTE]
+> This repo is itself an installed instance. Open it in Claude Code and point `/autoresearch` at `examples/autoresearch-python-speed/` to watch a loop run in minutes.
+
+---
 
 ## What is in the box
 
 ```
 .claude/
   skills/
-    project-context/   memory bank for the app (load first, update last)
-    write-checks/      checks before code; produces a plain-English checklist
-    build/             the driver: checks -> human approval -> lock -> builder -> report
-    auto-loop/         build one feature at a time; rewrite "## How to work" from evidence
-    autoresearch/      Karpathy's metric loop, generalised to any eval command
-    kloop-setup/       conversational repo onboarding: recon, short interview, writes profile + context
-    kloop-project/     conversational run setup: mode, target, frozen eval or features, budgets, go
+    kloop-setup/        onboard a repo: Graft first, graph recon, 2-3 question batches, review gate, write, verify
+    kloop-project/      start a run: graph-drafted scope, metric candidates, budgets, review gate, baseline, go
+    project-context/    memory bank for what the graph cannot map: intent, conventions, process, non-code files
+    write-checks/       checks BEFORE code, into checks/pending/<feature>/, plus a plain-English checklist
+    build/              driver: checks -> your approval -> lock -> fresh builder -> verify -> report
+    auto-loop/          one feature at a time; rewrites "## How to work" in program.md from evidence
+    autoresearch/       Karpathy's metric loop for any target + eval, with noise floor and ablation passes
   agents/
-    feature-builder.md fresh-context builder that runs the commit/check/keep-or-reset rounds
+    feature-builder.md  fresh-context builder that runs the rounds; navigates with Graft; logs excursions
   kloop/
-    approve-checks.sh  move checks/pending/<f> -> checks/locked/<f>, commit
-    run-checks.sh      run locked checks, print greppable summary lines
-    log-result.sh      append a round to results.tsv
-    guard-locked.py    PreToolUse hook: block any edit/rm/mv/redirect into protected paths
-    protected.txt      extra protected prefixes (your frozen eval, etc.)
-    config.sh          optional CHECK_CMD override
-    repo.md            repo profile written by kloop-setup (after onboarding)
-    runs/<tag>.md      one run spec per loop run, written by kloop-project
-  settings.json        deny rules for checks/locked + the hook
+    approve-checks.sh   checks/pending/<f> -> checks/locked/<f>, then commit (the human gate)
+    run-checks.sh       run locked checks; prints checks_total / checks_passed / failing / status
+    log-result.sh       append one round to results.tsv
+    guard-locked.py     PreToolUse hook: blocks edit / rm / mv / sed -i / redirects into protected paths
+    protected.txt       extra protected prefixes (your frozen eval, data manifests, prod code)
+    config.sh           CHECK_CMD / SUITE_CMD overrides
+    repo.md             repo profile written by /kloop-setup
+    runs/<tag>.md       one run spec per loop run, written by /kloop-project
+  settings.json         deny rules for checks/locked + the guard hook
 templates/
-  program.md           build-loop rules: "## Fixed rules" (human) + "## How to work" (auto-loop)
+  program.md            build-loop rules: "## Fixed rules" (yours) + "## How to work" (auto-loop's)
   autoresearch.program.md
-  features.md
-  results.header.tsv
-  repo.md / run.md     profile and run-spec templates the interview skills fill
-  eval_template.py     frozen-eval scaffold: pinned data, time box, asserts, metric line
+  features.md           feature tracker with rules as observable behaviour
+  repo.md / run.md      profile and run-spec templates the interview skills fill
+  eval_template.py      frozen-eval scaffold: pinned data, time box, asserts, metric line
 examples/
-  autoresearch-python-speed/   a toy target + frozen eval to try the metric loop on
-  feature-loop-walkthrough/    what one feature looks like going through the build loop
-  recsys-pattern-detector/     layout for pointing autoresearch at a production recommender
+  autoresearch-python-speed/   toy target + frozen eval; runs in minutes
+  recsys-pattern-detector/     layout for a production recommender
+  feature-loop-walkthrough/    one feature through the build loop
 notes/
-  video-summary.md             the video's method, paraphrased, section by section
-  karpathy-autoresearch.md     design, loop, numbers, and lessons from people who ran it
-  graft.md                     why Graft is here, what the video adds, CLI quick reference
-  sources.md                   every link used
-install.sh                     copy all of the above into another repo and merge settings
+  video-summary.md      the first AI LABS video, paraphrased section by section
+  karpathy-autoresearch.md     design, loop, results, lessons from people who ran it
+  graft.md              why Graft is here, what the second video adds, CLI quick reference
+  sources.md            every link used
+install.sh              copy into another repo, merge settings, optionally graft init + build
 ```
 
-## Install into a project
+---
+
+## Example: onboarding a repo with `/kloop-setup`
+
+A large product-recommendation repo. Names are illustrative; the shape is what the skill produces.
+
+<details open>
+<summary><b>0. Graft first</b></summary>
+
+```
+you    › /kloop-setup
+
+claude › Graft is not installed. It builds a local code graph the loops navigate
+         with instead of grepping. Options: install globally (npm install -g
+         @nanonets/graft), use npx per call, or skip it.
+
+you    › install globally
+
+claude › Installed 0.21.1. Dry run of `graft init --agents claude` would write:
+           .claude/skills/graft/SKILL.md   .mcp.json
+           .claude/helpers/graft-hooks.cjs  hooks + statusLine merged into .claude/settings.json
+           graft/ (git-ignored)
+         Running init and build...
+         graph: 4,812 nodes, 11,203 edges, Python + TypeScript. `graft check` OK.
+         k-auto-loop deny rules and guard hook still present after Graft's merge.
+```
+</details>
+
+<details open>
+<summary><b>1. What I found</b> (ten lines, no questions yet)</summary>
+
+```
+claude › What I found
+         1. Python 3.11 monorepo, uv; a Next.js admin under web/.
+         2. Tests: `uv run pytest -q` (CI runs it in ~6 min); web uses vitest.
+         3. graft map: hubs are recsys/scoring.py, recsys/features.py, api/routes.py.
+         4. Likely lab: recsys/ (pattern_detector.py, ranker.py are hotspots, 41 commits in 6 months).
+         5. Likely protected: eval/, data/manifests/, recsys/features.py (feeds prod), infra/, migrations/.
+         6. Existing metric code: eval/offline_metrics.py computes NDCG@10 and precision@k.
+         7. Compute: 1x A10 GPU, 32 CPU. Fits a 3-minute time box for a sklearn/torch detector.
+         8. Holdout candidate: data/manifests/holdout_2026q3.json points outside the repo. Good.
+         9. .claude/ already has a statusline; Graft kept it.
+        10. Surprise: recsys/pattern_detector.py imports from web/scripts/. That edge will be in scope talk.
+```
+</details>
+
+<details open>
+<summary><b>2. Interview</b> (structured questions, defaults pre-filled from recon)</summary>
+
+```
+claude › Batch A
+         1. What will loops do here?        ● optimise metrics (Recommended)  ○ build features  ○ both
+         2. Where may agents edit?          ● lab area: recsys/ (Recommended)  ○ anywhere on a branch  ○ one file only
+         3. Protected (multi-select):       ☑ eval/  ☑ data/, manifests  ☑ recsys/features.py  ☑ infra/, migrations/
+                                            ☑ existing test suite  ☐ web/
+         4. Isolation:                      ● worktree per run, headless overnight (Recommended)  ○ branch here  ○ sandbox
+
+you    › 1 both. 2 fine. 3 add web/ too. 4 worktree.
+
+claude › Batch B
+         5. Check runner: `uv run pytest {dir} -q -rf`; full suite `uv run pytest -q` (6 min) at feature end only?   ● yes
+         6. Budgets: 3 min per eval, 8 rounds per feature, builder maxTurns 150, ~100 experiments a night.      ● yes
+         7. Scope policy:                   ● soft (Recommended)  ○ hard
+         8. Graft depth:                    ● structural only (Recommended)  ○ --deep (needs GRAFT_API_KEY)
+
+you    › 6: 4 min per eval. rest fine.
+
+claude › Batch C
+         9. Delivery:  ● commits stay on the loop branch, you open the PR (Recommended)  ○ agent opens a draft PR
+        10. Repo-specific nevers (free text)?
+        11. Non-code context for project-context?
+        12. Holdout path and secondary constraints?
+
+you    › 9 recommended. 10 never call the live feature store; never touch anything under recsys/serving.
+         11 PRD lives in docs/prd/, deploys go through infra/README. 12 holdout is ~/data/recsys-holdout-2026q3.parquet,
+         print latency_ms and params_m, latency is a hard cap at 20ms.
+```
+</details>
+
+<details open>
+<summary><b>3. Review gate</b> (nothing written yet)</summary>
+
+```
+claude › Here is everything I will write. Approve, or tell me what to change.
+
+         .claude/kloop/repo.md ............ full text below (38 lines)
+         .claude/kloop/protected.txt ...... eval/ data/ recsys/features.py recsys/serving/ infra/ migrations/ web/
+         .claude/kloop/config.sh .......... CHECK_CMD="uv run pytest {dir} -q -rf"  SUITE_CMD="uv run pytest -q"
+         program.md ## Fixed rules ........ diff: round cap 8; done = checks + wired + suite green; delivery = branch only;
+                                            nevers: live feature store, recsys/serving; lab = recsys/; scope policy soft
+         .claude/skills/project-context ... filled: stack, run/test, routes, data model, conventions, PRD + deploy pointers,
+                                            "Graft owns code structure; this holds the rest"
+         .claude/agents/feature-builder ... maxTurns 150 (unchanged)
+         .claude/settings.json ............ + Edit(eval/**), Edit(recsys/serving/**), Edit(web/**) deny rules
+
+         ● approve and write    ○ edit
+
+you    › edit: in Fixed rules, also forbid new dependencies without listing them in the report.
+
+claude › Added. ● approve and write    ○ edit
+
+you    › approve
+```
+</details>
+
+<details open>
+<summary><b>4. Write and verify</b></summary>
+
+```
+claude › Written. Verified:
+         - `uv run pytest checks/locked -q` executes (0 collected, as expected).
+         - guard self-test: fake Edit on eval/x.py -> exit 2. OK.
+         - `graft check` OK.
+         - worktree ../recsys-kloop on branch kloop/oct02.
+         Committed: kloop: onboard repo (graft wiring, profile, protected paths, context)
+         Next: /kloop-project <what you want the loop to do>
+```
+</details>
+
+---
+
+## Example: starting a run with `/kloop-project`
+
+```
+you    › /kloop-project make the pattern detector better at catching repeat-purchase patterns
+```
+
+<details open>
+<summary><b>1. Graph recon and a drafted scope</b></summary>
+
+```
+claude › graft ask "repeat-purchase pattern detection" -> recsys/pattern_detector.py (build_detector, score_window)
+         graft callers build_detector -d 2 -> recsys/ranker.py, api/routes.py (via ranker), tests/test_pattern_detector.py
+         graft callers build_detector --direction out -> recsys/features.py (protected), configs/detector.yaml
+
+         Mode: autoresearch.
+         Scope (soft):  core          recsys/pattern_detector.py
+                        neighbourhood recsys/ranker.py, configs/detector.yaml, tests/test_pattern_detector.py,
+                                      recsys/features.py (read-only, protected), eval/ (read-only, protected)
+                        out by default everything else (loop may step out and log why)
+         Metric candidates:
+           A. precision@10 on labelled repeat-purchase windows   ground truth: data/labels/repeat_2026q2.parquet
+              noise: low-moderate; gaming: easy to overfit the slice -> holdout needed; cost ~3.5 min/run
+           B. NDCG@10 from eval/offline_metrics.py              reuses existing code; rewards ranking, not detection;
+              noise: low; gaming: harder; cost ~3.5 min/run
+           C. AUC pattern vs non-pattern                         robust to class balance; less tied to product impact
+         Cost per round ~4 min -> ~15 rounds/hour. Risk: pattern_detector imports web/scripts/ (protected) at module load.
+```
+</details>
+
+<details open>
+<summary><b>2. Interview</b></summary>
+
+```
+claude › Batch A
+         1. Mode:     ● autoresearch (Recommended)  ○ build  ○ auto-loop
+         2. Scope:    ● use drafted scope (Recommended)  ○ widen to <dir>  ○ core only
+         3. Metric:   ○ A precision@10   ○ B NDCG@10   ○ C AUC   ○ write my own        (your call; no default)
+         4. Budget:   8 hours or 120 experiments; stop after 40 consecutive discards; ablation every 20 keeps; 4 min/run
+
+you    › A, higher is better. Scope fine. Budget fine but stop at 30 discards.
+
+claude › Batch B
+         5. Eval design: pin train/val by manifest sha256; asserts shape + finite; print latency_ms (cap 20) and params_m
+         6. Isolation: worktree ../recsys-kloop, branch autoresearch/oct02
+         7. Forbidden: seeds, eval caching, reading labels, new deps, touching recsys/features.py or web/scripts
+         8. Idea seeds? Known dead ends?
+         9. Interim report every 25 rounds; final report, no PR; holdout ~/data/recsys-holdout-2026q3.parquet
+
+you    › seeds: session-recency decay, windowed co-occurrence counts, min-support pruning, hashing trick for sparse ids,
+         prune the current rule list. dead end: we tried a transformer here in May, too slow for the latency cap.
+```
+</details>
+
+<details open>
+<summary><b>3. Review gate, then baseline</b></summary>
+
+```
+claude › Run spec .claude/kloop/runs/oct02.md (full text below, 61 lines) and eval/pattern_eval.py metric_fn:
+
+           def metric_fn(model, df):           # precision@10 on labelled repeat-purchase windows
+               scores = model.predict(df.drop(columns=["label"]))
+               top = scores.argsort()[::-1][:10]
+               return float(df["label"].values[top].mean())
+
+         Asserts: manifest sha256 for train/val; fit under 240 s (kill at 300); predict shape; finite scores.
+         Prints: metric, latency_ms, fit_seconds, params_m. latency_ms > 20 -> constraint line -> discard.
+         ● approve   ○ edit
+
+you    › approve
+
+claude › Written and committed on autoresearch/oct02: kloop(oct02): run spec + frozen eval.
+         Eval runs in 3 m 48 s. Baseline x3: 0.4120, 0.4098, 0.4131 -> noise floor 0.0033.
+         An improvement smaller than 0.0033 will be logged as a discard.
+         Kick-off:
+           interactive  cd ../recsys-kloop && claude  ->  "read program.md and .claude/kloop/runs/oct02.md and start the autoresearch run"
+           unattended   cd ../recsys-kloop && claude -p "read program.md and .claude/kloop/runs/oct02.md and start the autoresearch run" \
+                          --permission-mode bypassPermissions > reports/oct02.console.log 2>&1
+         Say go and I start now.
+
+you    › go
+```
+</details>
+
+---
+
+## Walkthrough: what happens overnight, and what it touches
+
+This is the autoresearch night from the example above. The build loop differs in what gets edited and is covered in the next section.
+
+```mermaid
+sequenceDiagram
+    participant H as You
+    participant A as Agent (worktree, branch autoresearch/oct02)
+    participant G as Graft graph
+    participant E as eval/pattern_eval.py (frozen)
+    participant T as autoresearch.tsv (untracked)
+    H->>A: go
+    A->>G: skeleton + callers of the target (once)
+    loop every ~4 minutes, until a stop rule
+        A->>A: one idea -> edit recsys/pattern_detector.py -> git commit
+        A->>E: run, output to run.log
+        E-->>A: metric, latency_ms, params_m
+        A->>T: append commit, metric, keep|discard|crash, description
+        alt metric improves by more than the noise floor and latency within cap
+            A->>A: keep (branch advances)
+        else
+            A->>A: git reset --hard to round start
+        end
+    end
+    A->>A: every 20 keeps: ablation pass (revert each kept change alone, re-measure, drop dead weight)
+    A->>H: reports/2026-10-03-autoresearch-oct02.md + autoresearch.tsv snapshot
+    H->>E: --holdout on baseline and final commits (your shell, your data)
+    H->>H: open the PR, or don't
+```
+
+### Hour by hour
+
+1. **Minute 0.** The agent reads `program.md`, the run spec, and the graph's view of the target (its signatures, its callers, what it calls). It does not read the repo. It notes the start commit.
+2. **Each round, about four minutes.** One idea becomes one edit to `recsys/pattern_detector.py` and one commit, `research: session-recency decay, half-life 7d`. The eval runs with output redirected to `run.log`; the agent greps five lines out of it. It appends a row to `autoresearch.tsv`. A gain bigger than the noise floor with latency under the cap is a keep. Anything else, including a crash the agent cannot fix in a minute, is a `git reset --hard` back to where the round started.
+3. **Hour 1 to 2.** Idea seeds get tried first. Expect two or three keeps and a dozen discards. Discards are described honestly, "min-support 5: fewer patterns, precision down 0.012", because the next idea depends on knowing why.
+4. **When it runs dry.** The rules forbid degrading into seed flips and micro-nudges. The agent re-reads the target top to bottom, combines near misses, or tries a structural change. If 30 discards pass in a row, it stops.
+5. **Every 20 keeps.** An ablation pass: revert each kept change on its own, re-measure, drop the ones that no longer help. Earlier wins are not independent of later ones.
+6. **Interim report every 25 rounds**, final report when a stop rule fires: best versus baseline, kept commits one line each, notable discards, ablation results, three untried ideas.
+
+### What it touches, changes, and never touches
+
+| | Autoresearch run | Build / auto-loop run |
+|---|---|---|
+| **Edits every round** | the one target file; one commit per round on `autoresearch/<tag>` | app code inside the run's scope; one commit per round on `kloop/<tag>` |
+| **Appends, untracked** | `autoresearch.tsv`, `run.log` | `results.tsv`, `checks.log` |
+| **Reads** | `program.md`, run spec, Graft graph, `project-context`, the eval's output | the same, plus `features.md` and the locked checks |
+| **Writes at the end** | `reports/<date>-autoresearch-<tag>.md` + TSV snapshot | `reports/<date>-<feature>.md` + TSV snapshot; `features.md` status; `project-context` updates; `program.md` **`## How to work`** (auto-loop only) |
+| **Steps outside scope** | rarely; logged as `excursion: <path> because <reason>` | when it must; logged the same way, reviewed by auto-loop |
+| **Never touches** | the eval, data manifests, anything in `protected.txt`, `## Fixed rules`, your default branch, your holdout | `checks/locked/`, the eval, protected paths, `## Fixed rules`, your default branch |
+
+Git state at the end: one branch, a straight line of kept commits with reverted attempts absent from history but present in the TSV. Your checkout is untouched because the run lives in a worktree. Nothing is pushed unless you push it.
+
+### What you do in the morning
 
 ```bash
-git clone https://github.com/jonberliner/k-auto-loop
-cd k-auto-loop
-./install.sh /path/to/your/project              # build loop (+ auto-loop, + autoresearch)
-./install.sh /path/to/your/project --research   # autoresearch-flavoured program.md
-./install.sh /path/to/your/project --graft      # also graft init + graft build (needs node/npx)
+cd ../recsys-kloop
+git log --oneline autoresearch/oct02 | head          # the keeps
+column -t -s $'\t' autoresearch.tsv | less           # everything tried
+KLOOP_HOLDOUT_PATH=~/data/recsys-holdout-2026q3.parquet python eval/pattern_eval.py --holdout   # final commit
+git stash -u && git checkout <baseline-commit> && KLOOP_HOLDOUT_PATH=... python eval/pattern_eval.py --holdout
 ```
 
-The installer never overwrites an existing `program.md`, `features.md`,
-`config.sh`, or `protected.txt`, and merges (not replaces) your
-`.claude/settings.json`. It adds `results.tsv`, `autoresearch.tsv`,
-`run.log`, `checks.log` to `.gitignore`; the TSVs must stay untracked so a
-`git reset` never deletes the log.
+If val improved and holdout did not, the loop overfit the slice. Tighten the eval, do not ship. Otherwise open the PR yourself from the branch, with the report as the description.
 
-This repo is itself an installed instance, so you can open it in Claude
-Code and try the example under `examples/autoresearch-python-speed/`.
+---
 
-## Set it up by talking to it
+## The build loop and the auto-loop
 
-Two skills turn setup into a short conversation instead of file editing.
-Both do reconnaissance first and only ask what the code cannot answer, in
-at most three batches of structured questions with the inferred default
-stated in each. Every power-user knob is reachable (lab boundary,
-protected paths, worktree vs branch, runner command, round caps, builder
-turn limits, model, delivery rule, holdout data, forbidden tricks, idea
-seeds, stop and ablation cadence), but you only touch the ones you care
-about.
+For features instead of a number. The score is the count of locked checks that pass, with a hard rule that nothing which passed before may fail.
 
+```mermaid
+flowchart TD
+    subgraph outer [auto-loop: one feature at a time]
+        direction TB
+        W[write-checks<br/>checks/pending/feature/] --> R{You review the<br/>plain-English checklist}
+        R -- go --> L[approve-checks.sh<br/>move to checks/locked, commit]
+        L --> B[feature-builder, fresh context<br/>rounds: commit, run checks, keep or reset]
+        B --> V[run ALL locked checks + project suite]
+        V --> P[report + project-context update]
+        P --> Q[read results.tsv + report<br/>find recurring mistakes]
+        Q --> U[rewrite ONLY '## How to work'<br/>in program.md, with evidence]
+        U --> W
+    end
+    style R fill:#fde68a,stroke:#b45309,color:#111
+    style L fill:#bbf7d0,stroke:#15803d,color:#111
+    style U fill:#ddd6fe,stroke:#6d28d9,color:#111
 ```
-/kloop-setup                       # once per repo -> .claude/kloop/repo.md, protected.txt,
-                                   #   config.sh, program.md fixed rules, project-context, settings
-/kloop-project optimise the pattern detector in recsys/   # once per run -> .claude/kloop/runs/<tag>.md,
-                                   #   frozen eval scaffold, baseline x3, kick-off command
-```
 
-**You stay in control of the decisions that matter.** Neither skill
-writes a file until you approve a review of everything it drafted, shown
-in chat. Two things are never defaulted silently: the metric (the skill
-proposes two or three candidates with how each is measured, how noisy it
-is, how it could be gamed, and what it costs per run, and you pick or
-write your own) and the scope (drawn from the Graft graph as core files
-plus a two-hop neighbourhood, shown to you, soft by default so the loop
-can step outside with a logged reason rather than being fenced in).
-Everything they write is plain text under `.claude/kloop/`, `program.md`,
-and `eval/`, so you can edit it by hand at any time, and the loop skills
-read those files, not a hidden state.
+- **Checks first.** `write-checks` writes them, runs them to prove they fail, and lists them in plain English. At least one is a *wiring* check: the feature is reachable from the app. Passing checks on code nothing calls is not done.
+- **Lock on your approval.** The one human gate per feature. After `approve-checks.sh`, three layers stop the agent from softening them: a permission deny rule on the file tools, the guard hook on shell commands, and the commit.
+- **Fresh builder per feature.** Empty context, reads `program.md` and the checks, navigates with Graft, runs rounds. Keep means more checks pass with no regressions. `graft blast` before each keep; if the blast radius leaves the neighbourhood, the full suite runs first.
+- **The outer loop.** A fresh builder has no memory, so the same mistake recurs across features. After each feature, `auto-loop` reads the rows and the report, finds what repeats, and writes habits into `## How to work` with evidence like `(evidence: shared-db r1, mentions r1)`. It may widen or narrow the run's scope from logged excursions. It may not touch the checks or `## Fixed rules`, so it cannot make rounds stop failing by lowering the bar.
 
-**Graft goes first.** `/kloop-setup` checks for Graft, offers to install
-it, runs `graft init --agents claude` and `graft build`, and then does
-recon from `graft map`, `graft ask`, and `graft skeleton` instead of a
-tree walk. `/kloop-project` uses `graft ask` and `graft callers -d 2`
-around the request to find the relevant part of the repo and draft the
-scope. Builders use the Graft MCP tools before grep, check
-`graft callers` before changing shared behaviour, and run
-`graft blast --base <round start>` before deciding to keep a round; a
-blast radius that leaves the neighbourhood triggers the full suite. The
-outer loop widens or narrows scope from the logged excursions.
+The video's two learned habits, which ship as defaults in `templates/program.md`: *connect the feature to the app in the same round that makes its checks pass*, and *find every place the app already does this job and make each one follow the new rule*.
 
-`/kloop-setup ~/repos/some-repo` run from this repo installs first, then
-interviews. The loop skills read the profile and run spec, so the answers
-you give are the contract they work under. The example in
-`examples/recsys-pattern-detector/` shows the result for a production
-recommender.
+---
 
-## Use it by hand
+## Safety model
 
-In Claude Code, inside the target project:
+| Layer | Mechanism | What it stops |
+|---|---|---|
+| Frozen scorer | eval in a protected dir; checks in `checks/locked/` | the agent grading its own work |
+| Deny rules | `Edit(checks/locked/**)`, `Edit(eval/**)`, ... in `.claude/settings.json` | Edit / Write / NotebookEdit on protected files |
+| Guard hook | `guard-locked.py` on PreToolUse for Bash | `rm`, `mv`, `cp`, `sed -i`, `tee`, redirects, `git checkout --`, inline Python aimed at protected paths |
+| Commit | approved checks and the eval are committed before the loop starts | silent drift; `git diff` shows any attempt |
+| Branch + worktree | `autoresearch/<tag>` or `kloop/<tag>` in `../<repo>-kloop` | touching your checkout or default branch |
+| Untracked TSV | `results.tsv`, `autoresearch.tsv` git-ignored | `git reset` erasing the record |
+| Noise floor | baseline x3 before any experiment | keeping noise as a win |
+| Holdout | data the loop never sees, run by you | shipping an overfit slice |
+| Review gates | both interview skills show every draft before writing | a default you did not see |
 
-1. `/project-context` and fill in the memory bank. Five minutes here saves
-   every builder from re-reading the repo.
-2. Read `program.md`. Edit `## Fixed rules` to your taste (round cap,
-   definition of done, limits). Leave `## How to work` to the auto-loop.
-3. Pick a loop:
-   - `/build <one feature>` for a single pass. You will be shown a
-     plain-English checklist and asked to approve it. That is the only
-     question the loop asks.
-   - `/auto-loop <several features>` for multi-feature work. Same gate per
-     feature, and after each one the "How to work" section is rewritten
-     from `results.tsv` with cited evidence.
-   - `/autoresearch` to make a number move. You fill in target, eval,
-     direction, budget; it baselines three times, computes a noise floor,
-     and loops until you stop it.
+> [!WARNING]
+> Unattended runs need permission prompts off (`claude --dangerously-skip-permissions`, or headless with `--permission-mode bypassPermissions`; confirm the flags with `claude --help` on your version). Deny rules and the guard hook still apply in bypass mode. The blast radius of a bad round is one reverted commit on a branch nobody has pulled.
 
-### How the build loop keeps itself honest
+---
 
-- **Checks first.** `write-checks` writes them into `checks/pending/`,
-  runs them to prove they fail, and gives you a numbered plain-English
-  list. You add, cut, or change items.
-- **Lock on approval.** `approve-checks.sh` moves them to `checks/locked/`
-  and commits. From then on the agent cannot edit them: a permission deny
-  rule covers the file tools, and `guard-locked.py` (a PreToolUse hook)
-  refuses Bash commands that would write, move, delete, or redirect into
-  that folder. The commit is the third layer.
-- **Fresh builder per feature.** The `feature-builder` agent starts with
-  an empty context, reads `program.md` and the checks, and runs rounds.
-  Keep = more checks pass with no regressions. Otherwise reset.
-- **Done means wired.** Passing checks on code nothing calls is not done.
-  `program.md` requires the feature to be reachable from the app, and
-  `write-checks` requires at least one wiring check.
-- **Every round is logged**, including discards and crashes. The outer
-  loop learns more from those than from the keeps.
+## When not to use a loop
 
-### The outer loop
+The first video's four tests, which hold up:
 
-A fresh builder has no memory, so the same mistake repeats across
-features. `auto-loop` reads `results.tsv` and the per-feature report after
-each feature, finds problems that recur (same check failing twice, a
-regression pattern, a gap the checks missed), and rewrites **only** the
-`## How to work` section of `program.md` as numbered habits with evidence
-like `(evidence: shared-db r1, mentions r1)`. It may not touch the checks
-or the fixed rules, so it cannot make rounds stop failing by lowering the
-bar. The final report lists which habits paid off and suggests fixed-rule
-changes only you can make.
+1. **You repeat the task often.** A loop costs setup time you only earn back on repetition. One-off job: one good prompt.
+2. **Your usage limit can take it.** Every round re-reads context, including the failures. Graft cuts this a lot on big repos and barely at all on small ones.
+3. **The result is mechanically checkable.** A number from a frozen script, or checks that run. "Looks better" is not a score.
+4. **The agent can run what it built.** If it cannot execute and observe the failure, it cannot fix it next round.
 
-## Running unattended
+Never let a loop build a whole app. One feature, or one number, at a time.
 
-The loops are designed to run while you are away, so permission prompts
-have to be off. Run Claude Code in the target project with permissions
-bypassed (for example `claude --dangerously-skip-permissions`, or in
-headless mode `claude -p "..." --permission-mode bypassPermissions`; check
-`claude --help` for the flags your version supports). The guard hook and
-deny rules still apply in bypass mode. Work on a branch. The blast radius
-of a bad round is one reverted commit.
+---
 
-Budget: a feature round is typically 3 to 10 minutes; an autoresearch
-round is whatever your eval costs. Each round re-reads context, so a
-long run on a small plan will hit limits. The video's four tests for
-whether a loop is worth it: you repeat the task often, your usage limit
-can take it, the result is mechanically checkable, and the agent can run
-what it built.
+## Knobs
 
-## Adapting
+| Knob | Where | Default |
+|---|---|---|
+| Check runner / full suite | `.claude/kloop/config.sh` (`CHECK_CMD`, `SUITE_CMD`, `{dir}` expands) | autodetect pytest, vitest/jest, `.sh` |
+| Protected paths | `.claude/kloop/protected.txt` + deny rules | `checks/locked/` |
+| Round cap, definition of done, nevers | `program.md` `## Fixed rules` | 8 rounds; checks + wired + suite green |
+| Builder turn limit and model | `.claude/agents/feature-builder.md` | 150 turns, inherit |
+| Scope policy | `repo.md`; per-run scope in `runs/<tag>.md` | soft |
+| Noise floor, ablation cadence, plateau stop | run spec + `program.md` autoresearch block | 3 baselines; every 20 keeps; never (Karpathy) |
+| Graft depth | `graft build --deep` (needs `GRAFT_API_KEY`) | structural only |
+| No Graft at all | skip `--graft`; everything falls back to grep and reads | on |
 
-- Different runner: set `CHECK_CMD` in `.claude/kloop/config.sh`
-  (`{dir}` expands to the checks directory). Without it, `run-checks.sh`
-  autodetects pytest, vitest/jest, or executable `.sh` checks.
-- No Graft: everything works without it; recon and builders fall back to
-  grep and reads, and scope is drafted from a tree walk. Skip it on small
-  repos where there is little searching to save.
-- Protect more paths: add prefixes to `.claude/kloop/protected.txt`
-  (your frozen `eval.sh`, fixtures, data).
-- Tighter builders: edit `maxTurns` in `.claude/agents/feature-builder.md`
-  and the round cap in `program.md`.
-- Bigger ideas from the writeups worth trying: periodic ablation passes
-  over kept commits, a human-maintained idea list in `program.md`, and
-  tracking the git history of `program.md` as carefully as the code.
+---
 
 ## Credits
 
-- Andrej Karpathy, [autoresearch](https://github.com/karpathy/autoresearch)
-  (MIT). The loop semantics and the `program.md` idea are his; nothing from
-  that repo is vendored here.
-- AI LABS, [the video](https://www.youtube.com/watch?v=qLfSDQ5NGh0): the
-  checks-first build loop, the locked folder, the fresh builder per feature,
-  and the auto-loop that rewrites "how to work".
-- Trail HQ / Nanonets, [Graft](https://github.com/trailhq/Graft) (MIT): the
-  code graph the loops navigate and scope with. AI LABS'
-  [Graft video](https://www.youtube.com/watch?v=cyIWQHYoUg8) for the
-  walkthrough and the "code only, not your notes" caveat.
-- Community generalisations listed in [`notes/sources.md`](notes/sources.md).
+This package is a re-expression of other people's ideas, with attribution. Nothing from their repos is vendored.
 
-MIT. See [LICENSE](LICENSE).
+- **Andrej Karpathy**, [autoresearch](https://github.com/karpathy/autoresearch) (MIT). The loop, the frozen scorer, the fixed time budget, the untracked TSV, the simplicity criterion, "never stop", and the idea that the human programs `program.md` rather than the code. The notes in [`notes/karpathy-autoresearch.md`](notes/karpathy-autoresearch.md) paraphrase his README and `program.md`.
+- **AI LABS** (YouTube), [He Finally 10x Claude Code With This Method](https://www.youtube.com/watch?v=qLfSDQ5NGh0) and [Github Top Trending Tool Just Fixed The AI Agent's Biggest Problem](https://www.youtube.com/watch?v=cyIWQHYoUg8). The checks-first build loop, the locked folder with a settings rule, the fresh builder per feature, the auto-loop that rewrites "how to work" from the results log, the four tests for when a loop is worth it, and the "Graft maps code, not your notes" caveat. Paraphrased in [`notes/video-summary.md`](notes/video-summary.md) and [`notes/graft.md`](notes/graft.md).
+- **Trail HQ / Nanonets**, [Graft](https://github.com/trailhq/Graft) (MIT). The tree-sitter code graph, `graft ask` / `callers` / `blast`, and the Claude Code wiring the loops navigate and scope with.
+- **Tobi Lütke**, for demonstrating on Shopify's Liquid that the pattern is not ML-specific.
+- Community generalisations that shaped the non-ML defaults: **Udit Goenka**'s [autoresearch skill](https://github.com/uditgoenka/autoresearch) (bounded iterations, a guard that reworks a change when it breaks tests), **Rkcr7**'s [autoresearch-guide](https://github.com/Rkcr7/autoresearch-guide) (frozen eval, noise handling, "a better program.md is the main lever"), **yibie**'s [awesome-autoresearch](https://github.com/yibie/awesome-autoresearch), and the platform forks by **miolini**, **trevin-creator**, **jsegov**, and **andyluo7**.
+- Writeups whose lessons became rules here: **paddo** ([700 Experiments While You Sleep](https://paddo.dev/blog/autoresearch-overnight-lab/)) on seed-flip gaming, late-session degradation, and non-independent keeps, which became the forbidden list and the ablation pass; **Arun Baby**, **Aakash Gupta**, the **HackerNoon** overnight write-up, **DataCamp**, **The New Stack**, and **VentureBeat** for context and numbers. All links in [`notes/sources.md`](notes/sources.md).
+
+Built by [Jon Berliner](https://github.com/jonberliner) with Claude Code. MIT, see [LICENSE](LICENSE).
