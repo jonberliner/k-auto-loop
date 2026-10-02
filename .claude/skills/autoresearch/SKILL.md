@@ -12,7 +12,10 @@ in `build` / `auto-loop`; this is for making a number go the right way.
 
 ## Setup (work with the human once, then never again this run)
 
-1. Read `program.md`. If it is the build-loop version, the human wants the
+1. Read `program.md`, then `.claude/kloop/repo.md` and
+   `.claude/kloop/runs/<tag>.md` if they exist; a run spec written by
+   `/kloop-project` already answers most of this section, so skip what it
+   covers. If `program.md` is the build-loop version, the human wants the
    autoresearch variant: copy `templates/autoresearch.program.md` over it
    (or to `program.autoresearch.md` if both loops share the repo) and fill
    in, with the human:

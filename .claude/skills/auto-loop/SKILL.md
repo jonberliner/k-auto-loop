@@ -15,7 +15,8 @@ Request: **$ARGUMENTS**
 
 ## Loop
 
-Read `program.md` in full. Then for each feature, in order:
+Read `program.md` in full, then `.claude/kloop/repo.md` and the run spec
+in `.claude/kloop/runs/` if present. Then for each feature, in order:
 
 1. **Build** the feature with the `build` skill (which includes the human
    check-approval gate). One feature at a time, never several in parallel

@@ -15,7 +15,9 @@ features, use `auto-loop` instead; it calls this skill.
 Request: **$ARGUMENTS**
 
 ## 0. Preflight
-- Read `program.md`. Load `project-context`.
+- Read `program.md`. Load `project-context`. If `.claude/kloop/repo.md` exists,
+  read it; if a run spec for this work exists in `.claude/kloop/runs/`, read
+  it too. They override defaults here (round cap, delivery, nevers).
 - Confirm `.claude/kloop/*.sh` are executable and `checks/locked/` exists.
 - Confirm the working tree is clean (`git status --porcelain` empty). If
   not, stop and ask the human to commit or stash. This is the only

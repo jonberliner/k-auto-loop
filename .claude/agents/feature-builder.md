@@ -14,7 +14,9 @@ smallest clean change that also actually wires the feature into the app.
 ## Before round 1
 1. Read `program.md` completely. `## Fixed rules` is law. `## How to work`
    is the current best method; follow every habit in it.
-2. Read the feature's entry in `features.md` (rules, entry point, notes).
+2. Read the feature's entry in `features.md` (rules, entry point, notes),
+   and `.claude/kloop/repo.md` plus the current run spec in
+   `.claude/kloop/runs/` if they exist (lab boundary, nevers, budgets).
 3. Read every file in `checks/locked/<feature>/`. List, in your own notes,
    what each check requires. Do not edit anything in that folder, ever.
 4. Record the starting commit: `start=$(git rev-parse --short HEAD)`.

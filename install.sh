@@ -24,9 +24,9 @@ copy_if_missing() { # src dst
   if [[ -e "$2" ]]; then echo "  keep   $2 (exists)"; else mkdir -p "$(dirname "$2")"; cp "$1" "$2"; echo "  add    $2"; fi
 }
 
-mkdir -p "$target/.claude/skills" "$target/.claude/agents" "$target/.claude/kloop" \
+mkdir -p "$target/.claude/skills" "$target/.claude/agents" "$target/.claude/kloop" "$target/.claude/kloop/runs" \
          "$target/checks/pending" "$target/checks/locked" "$target/reports"
-for s in project-context write-checks build auto-loop autoresearch; do
+for s in project-context write-checks build auto-loop autoresearch kloop-setup kloop-project; do
   mkdir -p "$target/.claude/skills/$s"
   cp "$here/.claude/skills/$s/SKILL.md" "$target/.claude/skills/$s/SKILL.md"
   echo "  skill  $s"
@@ -48,6 +48,8 @@ fi
 mkdir -p "$target/templates"
 cp "$here/templates/autoresearch.program.md" "$target/templates/autoresearch.program.md"
 cp "$here/templates/results.header.tsv" "$target/templates/results.header.tsv"
+for t in repo.md run.md eval_template.py autoresearch.header.tsv; do cp "$here/templates/$t" "$target/templates/$t"; done
+touch "$target/.claude/kloop/runs/.gitkeep"
 touch "$target/checks/pending/.gitkeep" "$target/checks/locked/.gitkeep" "$target/reports/.gitkeep"
 
 # .gitignore additions
@@ -87,10 +89,11 @@ PY
 cat <<MSG
 
 done. next steps in $target:
-  1. open it in Claude Code and run:  /project-context   (fill in the memory bank)
-  2. edit program.md '## Fixed rules' to taste; leave '## How to work' to auto-loop
-  3. build one feature:    /build <what you want>
-     or improve the loop:  /auto-loop <list of features>
-     or optimise a number: /autoresearch   (fills program.md's autoresearch block)
-  4. for an unattended overnight run, see README "Running unattended".
+  1. open it in Claude Code and run:  /kloop-setup
+     (recon + a short interview; writes repo profile, protected paths, context)
+  2. start a run:                     /kloop-project <what you want the loop to do>
+     (picks mode, pins target + frozen eval or feature list, baselines, kicks off)
+  manual route: /project-context, edit program.md '## Fixed rules', then
+     /build <feature> | /auto-loop <features> | /autoresearch
+  unattended overnight runs: see README "Running unattended".
 MSG

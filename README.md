@@ -26,6 +26,8 @@ that is the human's steering wheel. Notes on both sources are in
     build/             the driver: checks -> human approval -> lock -> builder -> report
     auto-loop/         build one feature at a time; rewrite "## How to work" from evidence
     autoresearch/      Karpathy's metric loop, generalised to any eval command
+    kloop-setup/       conversational repo onboarding: recon, short interview, writes profile + context
+    kloop-project/     conversational run setup: mode, target, frozen eval or features, budgets, go
   agents/
     feature-builder.md fresh-context builder that runs the commit/check/keep-or-reset rounds
   kloop/
@@ -35,15 +37,20 @@ that is the human's steering wheel. Notes on both sources are in
     guard-locked.py    PreToolUse hook: block any edit/rm/mv/redirect into protected paths
     protected.txt      extra protected prefixes (your frozen eval, etc.)
     config.sh          optional CHECK_CMD override
+    repo.md            repo profile written by kloop-setup (after onboarding)
+    runs/<tag>.md      one run spec per loop run, written by kloop-project
   settings.json        deny rules for checks/locked + the hook
 templates/
   program.md           build-loop rules: "## Fixed rules" (human) + "## How to work" (auto-loop)
   autoresearch.program.md
   features.md
   results.header.tsv
+  repo.md / run.md     profile and run-spec templates the interview skills fill
+  eval_template.py     frozen-eval scaffold: pinned data, time box, asserts, metric line
 examples/
   autoresearch-python-speed/   a toy target + frozen eval to try the metric loop on
   feature-loop-walkthrough/    what one feature looks like going through the build loop
+  recsys-pattern-detector/     layout for pointing autoresearch at a production recommender
 notes/
   video-summary.md             the video's method, paraphrased, section by section
   karpathy-autoresearch.md     design, loop, numbers, and lessons from people who ran it
@@ -69,7 +76,31 @@ The installer never overwrites an existing `program.md`, `features.md`,
 This repo is itself an installed instance, so you can open it in Claude
 Code and try the example under `examples/autoresearch-python-speed/`.
 
-## Use it
+## Set it up by talking to it
+
+Two skills turn setup into a short conversation instead of file editing.
+Both do reconnaissance first and only ask what the code cannot answer, in
+at most three batches of structured questions with the inferred default
+stated in each. Every power-user knob is reachable (lab boundary,
+protected paths, worktree vs branch, runner command, round caps, builder
+turn limits, model, delivery rule, holdout data, forbidden tricks, idea
+seeds, stop and ablation cadence), but you only touch the ones you care
+about.
+
+```
+/kloop-setup                       # once per repo -> .claude/kloop/repo.md, protected.txt,
+                                   #   config.sh, program.md fixed rules, project-context, settings
+/kloop-project optimise the pattern detector in recsys/   # once per run -> .claude/kloop/runs/<tag>.md,
+                                   #   frozen eval scaffold, baseline x3, kick-off command
+```
+
+`/kloop-setup ~/repos/some-repo` run from this repo installs first, then
+interviews. The loop skills read the profile and run spec, so the answers
+you give are the contract they work under. The example in
+`examples/recsys-pattern-detector/` shows the result for a production
+recommender.
+
+## Use it by hand
 
 In Claude Code, inside the target project:
 
