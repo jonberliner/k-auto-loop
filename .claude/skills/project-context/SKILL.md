@@ -13,6 +13,13 @@ grow it as the app grows.
 **Agents: update this file at the end of every feature** (new pages, new
 conventions, new gotchas). The `build` skill does this as its last step.
 
+## Where the code map lives
+Graft (`graft/`, built by `graft build`) owns code structure: symbols,
+callers, blast radius. Ask it first (`graft_find_code`, `graft_trace_calls`,
+`graft_file_api`, or `graft ask` / `graft callers` / `graft skeleton`). This
+skill holds what the graph cannot map: intent, conventions, process, and the
+non-code files (PRDs, plans, runbooks) listed below.
+
 ## What the app does
 <!-- one paragraph: who uses it, for what -->
 

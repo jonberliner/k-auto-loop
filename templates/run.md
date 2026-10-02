@@ -11,8 +11,15 @@ after `program.md`.
 ## Objective (one sentence)
 
 
+## Scope (from the Graft graph; soft unless repo.md says hard)
+- core (edit): 
+- neighbourhood (read, may touch; from `graft callers <symbol> -d 2`): 
+- out of scope by default: everything else
+- policy: soft | hard
+- excursions so far (filled by the loop and reviewed by auto-loop): 
+
 ## Target
-- files the agent may edit: 
+- files the agent may edit (= core): 
 - everything else is read-only; protected prefixes added: 
 
 ## Eval (autoresearch) or features (build)

@@ -31,7 +31,11 @@ in `.claude/kloop/runs/` if present. Then for each feature, in order:
    - repeated crashes of the same shape (missing import, wrong runner, env);
    - wasted rounds: the builder re-tried an approach already discarded;
    - anything the human corrected during check review that a rule could
-     have pre-empted.
+     have pre-empted;
+   - excursions outside the run spec's scope: the same path or area needed
+     by two features means the scope was drawn too tight; a blast radius
+     (from the report) that repeatedly reaches code no check covers means a
+     check is missing.
 3. **Write habits.** For each recurring problem, write one habit: a short
    imperative sentence a builder can follow before it starts, plus the
    evidence in the form `(evidence: <feature> r<N>, <feature> r<M>)`. One
@@ -42,10 +46,15 @@ in `.claude/kloop/runs/` if present. Then for each feature, in order:
    with the current habit list, numbered, most impactful first, keeping the
    HTML comment at the top. Do not touch a single character above that
    heading. Keep it under ~15 habits; if it grows past that, merge.
-5. **Commit** `program.md` alone: `program(<feature>): <n> habits updated -
+5. **Scope**: if two features needed the same excursion, widen the Scope
+   section of the run spec in `.claude/kloop/runs/` with the evidence; if
+   part of the neighbourhood was never touched across three features,
+   narrow it. Scope is soft and yours to tune; protected paths and
+   `## Fixed rules` are not.
+6. **Commit** `program.md` alone: `program(<feature>): <n> habits updated -
    <one line>`. Append a "Habits learned" section to the feature's report
    and commit that too.
-6. Next feature. Do not ask whether to continue.
+7. Next feature. Do not ask whether to continue.
 
 ## Final report
 When the feature list is done, write `reports/<date>-auto-loop.md`: every

@@ -10,6 +10,12 @@ Two loops, one set of mechanics:
 | **autoresearch** | one number from a frozen eval (speed, loss, size, score) | Karpathy's [autoresearch](https://github.com/karpathy/autoresearch) |
 | **build** + **auto-loop** | features, scored by locked checks written *before* the code; the outer loop rewrites the inner loop's instructions from the results log | AI LABS, ["He Finally 10x Claude Code With This Method"](https://www.youtube.com/watch?v=qLfSDQ5NGh0) |
 
+Both navigate the repo with [Graft](https://github.com/trailhq/Graft), a
+local tree-sitter code graph, so a fresh builder asks "what uses this"
+instead of grepping its way through a large repo every round. Graft runs
+first during setup, and the graph is how each run finds the part of the
+repo it should stay in. Notes in [`notes/graft.md`](notes/graft.md).
+
 Both share the mechanics that make the original work: one commit per round,
 a scorer the agent cannot touch, keep on improvement, `git reset` on
 anything else, an untracked TSV as the lab notebook, and a `program.md`
@@ -54,6 +60,7 @@ examples/
 notes/
   video-summary.md             the video's method, paraphrased, section by section
   karpathy-autoresearch.md     design, loop, numbers, and lessons from people who ran it
+  graft.md                     why Graft is here, what the video adds, CLI quick reference
   sources.md                   every link used
 install.sh                     copy all of the above into another repo and merge settings
 ```
@@ -65,6 +72,7 @@ git clone https://github.com/jonberliner/k-auto-loop
 cd k-auto-loop
 ./install.sh /path/to/your/project              # build loop (+ auto-loop, + autoresearch)
 ./install.sh /path/to/your/project --research   # autoresearch-flavoured program.md
+./install.sh /path/to/your/project --graft      # also graft init + graft build (needs node/npx)
 ```
 
 The installer never overwrites an existing `program.md`, `features.md`,
@@ -93,6 +101,29 @@ about.
 /kloop-project optimise the pattern detector in recsys/   # once per run -> .claude/kloop/runs/<tag>.md,
                                    #   frozen eval scaffold, baseline x3, kick-off command
 ```
+
+**You stay in control of the decisions that matter.** Neither skill
+writes a file until you approve a review of everything it drafted, shown
+in chat. Two things are never defaulted silently: the metric (the skill
+proposes two or three candidates with how each is measured, how noisy it
+is, how it could be gamed, and what it costs per run, and you pick or
+write your own) and the scope (drawn from the Graft graph as core files
+plus a two-hop neighbourhood, shown to you, soft by default so the loop
+can step outside with a logged reason rather than being fenced in).
+Everything they write is plain text under `.claude/kloop/`, `program.md`,
+and `eval/`, so you can edit it by hand at any time, and the loop skills
+read those files, not a hidden state.
+
+**Graft goes first.** `/kloop-setup` checks for Graft, offers to install
+it, runs `graft init --agents claude` and `graft build`, and then does
+recon from `graft map`, `graft ask`, and `graft skeleton` instead of a
+tree walk. `/kloop-project` uses `graft ask` and `graft callers -d 2`
+around the request to find the relevant part of the repo and draft the
+scope. Builders use the Graft MCP tools before grep, check
+`graft callers` before changing shared behaviour, and run
+`graft blast --base <round start>` before deciding to keep a round; a
+blast radius that leaves the neighbourhood triggers the full suite. The
+outer loop widens or narrows scope from the logged excursions.
 
 `/kloop-setup ~/repos/some-repo` run from this repo installs first, then
 interviews. The loop skills read the profile and run spec, so the answers
@@ -172,6 +203,9 @@ what it built.
 - Different runner: set `CHECK_CMD` in `.claude/kloop/config.sh`
   (`{dir}` expands to the checks directory). Without it, `run-checks.sh`
   autodetects pytest, vitest/jest, or executable `.sh` checks.
+- No Graft: everything works without it; recon and builders fall back to
+  grep and reads, and scope is drafted from a tree walk. Skip it on small
+  repos where there is little searching to save.
 - Protect more paths: add prefixes to `.claude/kloop/protected.txt`
   (your frozen `eval.sh`, fixtures, data).
 - Tighter builders: edit `maxTurns` in `.claude/agents/feature-builder.md`
@@ -188,6 +222,10 @@ what it built.
 - AI LABS, [the video](https://www.youtube.com/watch?v=qLfSDQ5NGh0): the
   checks-first build loop, the locked folder, the fresh builder per feature,
   and the auto-loop that rewrites "how to work".
+- Trail HQ / Nanonets, [Graft](https://github.com/trailhq/Graft) (MIT): the
+  code graph the loops navigate and scope with. AI LABS'
+  [Graft video](https://www.youtube.com/watch?v=cyIWQHYoUg8) for the
+  walkthrough and the "code only, not your notes" caveat.
 - Community generalisations listed in [`notes/sources.md`](notes/sources.md).
 
 MIT. See [LICENSE](LICENSE).

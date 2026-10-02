@@ -8,6 +8,12 @@ Tag each fact `(inferred)` or `(confirmed)`.
 - purpose of loops here: optimise | build | both
 - owner / reviewer for loop output: 
 
+## Graft
+- version: ; graph: <nodes> nodes / <edges> edges / languages: 
+- deep (LLM summaries) built: yes | no
+- wiring: .claude/skills/graft/SKILL.md, .mcp.json, hooks + statusline in settings (confirmed k-auto-loop guard still present: yes | no)
+- rebuild: `graft build`; drift check: `graft check`
+
 ## Stack
 - language, framework, package manager: 
 - how to run the app or pipeline: 
@@ -21,6 +27,9 @@ Tag each fact `(inferred)` or `(confirmed)`.
 
 ## Protected (agents never edit; mirrored in .claude/kloop/protected.txt and settings deny rules)
 - 
+
+## Scope policy for runs
+- soft (loop may step outside the run's scope, logging why; auto-loop widens with evidence) | hard (outside scope = stop and report)
 
 ## Isolation and attendance
 - worktree per run | branch in checkout | remote sandbox

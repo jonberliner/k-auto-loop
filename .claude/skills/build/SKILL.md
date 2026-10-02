@@ -46,8 +46,9 @@ Request: **$ARGUMENTS**
 - Set status `building`. Note the starting commit.
 - Launch the `feature-builder` agent with a **fresh context**. Pass it:
   the feature name, the path to its locked checks, the rules from
-  `features.md`, the max rounds from `program.md`, and the instruction to
-  read `program.md` and `project-context` itself. Do not paste the whole
+  `features.md`, the max rounds from `program.md`, the run spec path (its
+  scope section), and the instruction to read `program.md` and
+  `project-context` itself and to navigate with Graft. Do not paste the whole
   repo into its prompt; it has tools.
 - The builder runs the rounds and logs every one with
   `.claude/kloop/log-result.sh`. It returns a structured summary:
@@ -61,7 +62,9 @@ Request: **$ARGUMENTS**
   summary. Every locked check in the repo must pass, not just this
   feature's. Then run the project's own test suite.
 - Write `reports/<YYYY-MM-DD>-<feature>.md`: rounds table (from
-  `results.tsv`), kept vs discarded, where the builder went wrong and how it
+  `results.tsv`), `graft blast --base <feature start> --format markdown`
+  output (what the feature's kept commits touch), excursions outside scope
+  and why, kept vs discarded, where the builder went wrong and how it
   recovered, what the checks missed, diffs of interest, dependencies added,
   open questions for the human. Copy the feature's rows of `results.tsv`
   into `reports/<YYYY-MM-DD>-<feature>.results.tsv`.

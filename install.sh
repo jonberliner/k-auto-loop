@@ -3,6 +3,8 @@
 #
 #   ./install.sh /path/to/your/project            # build loop + auto-loop + autoresearch
 #   ./install.sh /path/to/your/project --research # autoresearch-flavoured program.md instead
+#   ./install.sh /path/to/your/project --graft    # also run `graft init --agents claude` + `graft build`
+#                                                  (flags combine; order does not matter)
 #
 # Copies: .claude/skills/*, .claude/agents/feature-builder.md, .claude/kloop/*,
 #         program.md, features.md (never overwrites existing ones),
@@ -12,10 +14,16 @@
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 target="${1:-}"
-mode="build"
-[[ "${2:-}" == "--research" ]] && mode="research"
+mode="build"; with_graft=0
+for arg in "${@:2}"; do
+  case "$arg" in
+    --research) mode="research" ;;
+    --graft) with_graft=1 ;;
+    *) echo "unknown flag: $arg" >&2; exit 1 ;;
+  esac
+done
 if [[ -z "$target" || ! -d "$target" ]]; then
-  echo "usage: install.sh /path/to/project [--research]" >&2; exit 1
+  echo "usage: install.sh /path/to/project [--research] [--graft]" >&2; exit 1
 fi
 target="$(cd "$target" && pwd)"
 echo "installing k-auto-loop into $target (mode: $mode)"
@@ -51,6 +59,20 @@ cp "$here/templates/results.header.tsv" "$target/templates/results.header.tsv"
 for t in repo.md run.md eval_template.py autoresearch.header.tsv; do cp "$here/templates/$t" "$target/templates/$t"; done
 touch "$target/.claude/kloop/runs/.gitkeep"
 touch "$target/checks/pending/.gitkeep" "$target/checks/locked/.gitkeep" "$target/reports/.gitkeep"
+
+# Graft (optional): map the repo first so recon and every builder work from the graph.
+# Runs BEFORE our settings merge so the k-auto-loop deny rules + guard hook are re-asserted after Graft's merge.
+if [[ $with_graft -eq 1 ]]; then
+  if command -v graft >/dev/null 2>&1; then GRAFT=(graft)
+  elif command -v npx >/dev/null 2>&1; then GRAFT=(npx -y @nanonets/graft)
+  else echo "  WARN  --graft requested but neither graft nor npx is available; skipping"; GRAFT=(); fi
+  if [[ ${#GRAFT[@]} -gt 0 ]]; then
+    ( cd "$target" && "${GRAFT[@]}" init --agents claude --no-global "$target" >/dev/null 2>&1 \
+        && echo "  graft  init (skill, hooks, statusline, .mcp.json)" || echo "  WARN  graft init failed; run it by hand" )
+    ( cd "$target" && "${GRAFT[@]}" check "$target" >/dev/null 2>&1 \
+        || "${GRAFT[@]}" build "$target" >/dev/null 2>&1 ) && echo "  graft  build (graph in graft/, git-ignored)" || echo "  WARN  graft build failed; run 'graft build' by hand"
+  fi
+fi
 
 # .gitignore additions
 gi="$target/.gitignore"; touch "$gi"
@@ -90,7 +112,8 @@ cat <<MSG
 
 done. next steps in $target:
   1. open it in Claude Code and run:  /kloop-setup
-     (recon + a short interview; writes repo profile, protected paths, context)
+     (Graft first, graph-powered recon, a short interview, a review gate,
+      then it writes the repo profile, protected paths, and context)
   2. start a run:                     /kloop-project <what you want the loop to do>
      (picks mode, pins target + frozen eval or feature list, baselines, kicks off)
   manual route: /project-context, edit program.md '## Fixed rules', then

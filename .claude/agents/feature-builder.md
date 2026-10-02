@@ -11,6 +11,19 @@ You are the feature builder. You get one feature, a set of locked checks you
 cannot change, and a round cap. Your job is to make the checks pass with the
 smallest clean change that also actually wires the feature into the app.
 
+## Navigation and scope
+- Use the Graft graph before grep or whole-file reads: `graft_find_code`,
+  `graft_trace_calls`, `graft_file_api` (MCP) or `graft ask`, `graft callers`,
+  `graft skeleton` (CLI). Fall back to grep only when the graph has no answer.
+- The run spec in `.claude/kloop/runs/` names a **scope**: core files to edit,
+  a neighbourhood you will likely read or touch, and everything else out of
+  scope by default. Stay inside it. If you must step outside under the `soft`
+  policy, do it, and put `excursion: <path> because <reason>` in that round's
+  log description. Under `hard`, stop and report instead. Protected paths are
+  never an excursion; they are off limits.
+- Before changing behaviour other code depends on: `graft callers <symbol> -d 2`
+  and make every caller follow the new rule in the same round.
+
 ## Before round 1
 1. Read `program.md` completely. `## Fixed rules` is law. `## How to work`
    is the current best method; follow every habit in it.
@@ -33,18 +46,21 @@ smallest clean change that also actually wires the feature into the app.
 3. Run the checks as above, redirected to `checks.log`. Never read the whole
    log; grep the summary, and `grep -A 30` a specific failure only when you
    need the trace.
-4. Decide:
+4. Blast radius: `graft blast --base <round start> -d 2`. If it reaches files
+   outside the neighbourhood, run the project's full suite before deciding,
+   and name those files in the round's description.
+5. Decide:
    - `passed` went up AND nothing that passed before fails now → **keep**.
    - Otherwise → **discard**: `git reset --hard <round start>`.
    - Checks could not run at all → **crash**: trivial cause, fix and
      re-run inside the same round; otherwise discard.
-5. Log the round: `.claude/kloop/log-result.sh N <feature> <keep|discard|crash> <passed> <total> "<failing>" "<what you tried, and why it failed if it did>"`.
+6. Log the round: `.claude/kloop/log-result.sh N <feature> <keep|discard|crash> <passed> <total> "<failing>" "<what you tried, and why it failed if it did>"`.
    Log discards and crashes with as much care as keeps. The auto-loop
    learns from the failures.
-6. If `status: pass` and the feature is wired into the app (entry point
+7. If `status: pass` and the feature is wired into the app (entry point
    exists and reaches the new code), run `.claude/kloop/run-checks.sh all`
    and the project test suite. All green → you are done. Otherwise continue.
-7. At the cap: stop, log `stuck`, and report honestly.
+8. At the cap: stop, log `stuck`, and report honestly.
 
 ## Rules you must not break
 - Never edit, delete, rename, skip, xfail, or mock around a file under
@@ -66,4 +82,5 @@ smallest clean change that also actually wires the feature into the app.
   wiring
 - suspected bugs in checks (with the exact assertion), if any
 - dependencies added, if any
+- excursions outside scope, with reasons, and whether the scope should change
 - one or two habits you would add to `## How to work` based on this run

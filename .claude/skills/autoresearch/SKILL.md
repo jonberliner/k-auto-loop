@@ -25,15 +25,19 @@ in `build` / `auto-loop`; this is for making a number go the right way.
      so the guard hook blocks edits to it.
    - **Direction**: lower or higher is better.
    - **Budget**: approximate minutes per eval run; kill at 2x.
-2. Agree a run tag (today's date works: `oct02`). Branch
+2. Orient once with the graph, not by reading: `graft skeleton <target>`,
+   `graft callers <main symbol> -d 1` both directions, so you know what the
+   target feeds and what it depends on. The target is still the only file
+   you edit.
+3. Agree a run tag (today's date works: `oct02`). Branch
    `autoresearch/<tag>` must not already exist. `git checkout -b` it.
-3. Create `autoresearch.tsv` with the header
+4. Create `autoresearch.tsv` with the header
    `commit	metric	status	description` (tabs). It is untracked and must
    stay untracked, so a reset never erases it.
-4. **Baseline x3**: run the eval three times unchanged. Log each as
+5. **Baseline x3**: run the eval three times unchanged. Log each as
    `baseline`. The spread is your noise floor. Write it in the TSV
    description of the third baseline row: `noise_floor=<spread>`.
-5. Confirm with the human once. Then go, and do not ask again.
+6. Confirm with the human once. Then go, and do not ask again.
 
 ## LOOP FOREVER
 
